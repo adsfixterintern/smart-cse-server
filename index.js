@@ -158,7 +158,13 @@ app.post("/login", async (req, res) => {
   try {
     const user = await client.db("smartCse").collection("users").findOne({ email });
 
-    if (user && user.password === password) {
+    if (!user) {
+      return res.status(401).send({ message: "Invalid email or password" });
+    }
+
+    const isPasswordMatch = await bcrypt.compare(password, user.password);
+
+    if (isPasswordMatch) {
       const token = jwt.sign(
         { email: user.email, role: user.role, id: user._id },
         process.env.JWT_SECRET,
@@ -167,12 +173,18 @@ app.post("/login", async (req, res) => {
 
       return res.send({ 
         token, 
-        user: { id: user._id, email: user.email, role: user.role, name: user.name } 
+        user: { 
+          id: user._id.toString(), 
+          email: user.email, 
+          role: user.role, 
+          name: user.name 
+        } 
       });
     } else {
       return res.status(401).send({ message: "Invalid email or password" });
     }
   } catch (error) {
+    console.error(error);
     res.status(500).send({ message: "Server error" });
   }
 });
@@ -183,21 +195,35 @@ app.post("/login", async (req, res) => {
       res.send(users);
     });
     app.post("/users", async (req, res) => {
-      const user = req.body;
+  try {
+    const user = req.body;
 
-      if (!user.email) {
-        return res.status(400).send({ message: "Email is required" });
-      }
+    if (!user.email || !user.password) {
+      return res.status(400).send({ message: "Email and password are required" });
+    }
 
-      const existingUser = await usersCollection.findOne({ email: user.email });
+    const existingUser = await usersCollection.findOne({ email: user.email });
+    if (existingUser) {
+      return res.status(409).send({ message: "User already exists" });
+    }
 
-      if (existingUser) {
-        return res.status(409).send({ message: "User already exists" });
-      }
+    // পাসওয়ার্ড হ্যাশ করা (salt level 10)
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(user.password, salt);
 
-      const result = await usersCollection.insertOne(user);
-      res.send(result);
-    });
+    // হ্যাশ করা পাসওয়ার্ড দিয়ে ইউজার অবজেক্ট তৈরি
+    const newUser = {
+      ...user,
+      password: hashedPassword,
+      createdAt: new Date()
+    };
+
+    const result = await usersCollection.insertOne(newUser);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Registration failed" });
+  }
+});
     app.delete("/users/:id",verifyJWT,verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const result = await usersCollection.deleteOne({ _id: new ObjectId(id) });
