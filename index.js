@@ -65,6 +65,7 @@ async function run() {
   try {
     const db = client.db("smartCse");
     const usersCollection = db.collection("users");
+    const coursesCollection = db.collection("courses");
     const routinesCollection = db.collection("routines");
     const attendanceCollection = db.collection("attendance");
     const paymentsCollection = db.collection("payments");
@@ -244,6 +245,59 @@ app.post("/login", async (req, res) => {
       );
 
       res.send(result);
+    });
+    // course related routes
+    app.get("/courses", async (req, res) => {
+      const courseCode = req.query.code;
+
+      let query = {};
+
+      if (courseCode) {
+        query.courseCode = courseCode;
+      }
+      const courses = await coursesCollection.find(query).toArray();
+      res.send(courses);
+    });
+    app.post("/courses", async (req, res) => {
+      const course = req.body;
+      const existingCourse = await coursesCollection.findOne({
+        courseCode: course.code,
+      });
+
+      if (existingCourse) {
+        return res.status(409).send({ message: "Course already exists" });
+      }
+      const result = await coursesCollection.insertOne(course);
+      res.send(result);
+    });
+    app.delete("/courses/:id", async (req, res) => {
+      const id = req.params.id;
+      const result = await coursesCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+      res.send(result);
+    });
+    app.patch("/courses/:id", async (req, res) => {
+      const id = req.params.id;
+      const updateData = req.body;
+
+      const result = await coursesCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: updateData },
+      );
+
+      res.send(result);
+    });
+    app.get("/courses/code/:code", async (req, res) => {
+      const code = Number(req.params.code); 
+
+      const course = await coursesCollection.findOne({ code });
+
+      if (!course) {
+        return res.status(404).send({ message: "Course not found" });
+      }
+
+      res.send(course);
     });
 
 
