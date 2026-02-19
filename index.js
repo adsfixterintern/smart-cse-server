@@ -70,6 +70,7 @@ async function run() {
     const attendanceCollection = db.collection("attendance");
     const paymentsCollection = db.collection("payments");
     const settingsCollection = db.collection("settings");
+    const feedbackCollection = db.collection("feedback");
 
     // Admin verification middleware
     const verifyAdmin = async (req, res, next) => {
@@ -554,6 +555,48 @@ async function run() {
 
       res.send(result);
     });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // feedback routes-------------------
+    app.get("/feedback", verifyJWT, async (req, res) => {
+      const result = await feedbackCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.post("/feedback", verifyJWT, async (req, res) => {
+      const feedback = req.body;
+      const result = await feedbackCollection.insertOne(feedback);
+      res.send(result);
+    });
+
+    app.delete(
+      "/feedback/:id",
+      verifyJWT,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const result = await feedbackCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res.send(result);
+      },
+    );    
+
+
+
 
     await client.connect();
     console.log("Connected to MongoDB");
