@@ -170,7 +170,7 @@ async function run() {
       res.send(result);
     });
     app.get("/courses/code/:code", async (req, res) => {
-      const code = Number(req.params.code); // string → number
+      const code = Number(req.params.code); 
 
       const course = await coursesCollection.findOne({ code });
 
