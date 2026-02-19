@@ -190,11 +190,16 @@ app.post("/login", async (req, res) => {
   }
 });
 
-
+// get all users (admin only)
     app.get("/users", verifyJWT, async (req, res) => {
       const users = await usersCollection.find().toArray();
       res.send(users);
     });
+
+
+
+    // post new user (registration)
+
     app.post("/users", async (req, res) => {
   try {
     const user = req.body;
@@ -207,41 +212,24 @@ app.post("/login", async (req, res) => {
     if (existingUser) {
       return res.status(409).send({ message: "User already exists" });
     }
-
-    // পাসওয়ার্ড হ্যাশ করা (salt level 10)
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(user.password, salt);
 
-      const result = await usersCollection.insertOne(user);
-      res.send(result);
-      }
-       catch (error) {
-      res.status(500).send({ message: "Registration failed", error });
-    }
-    });
-    
+    const newUser = {
+      ...user,
+      password: hashedPassword,
+      createdAt: new Date()
+    };
+
+    const result = await usersCollection.insertOne(newUser);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Registration failed" });
+  }
+});
 
 
-
-
-//     app.delete("/users/:id", async (req, res) => {
-//     // হ্যাশ করা পাসওয়ার্ড দিয়ে ইউজার অবজেক্ট তৈরি
-//     const newUser = {
-//       ...user,
-//       password: hashedPassword,
-//       createdAt: new Date()
-//     };
-
-//     const result = await usersCollection.insertOne(newUser);
-//     res.send(result);
-//   } catch (error) {
-//     res.status(500).send({ message: "Registration failed" });
-//     }
-    // );
-    
-
-
-
+// delete user (admin only)
     app.delete("/users/:id",verifyJWT,verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const result = await usersCollection.deleteOne({ _id: new ObjectId(id) });
@@ -314,6 +302,8 @@ app.post("/login", async (req, res) => {
 
 
      // routines routes
+
+    // get routines with optional semester filter
     app.get("/routines", async (req, res) => {
       const semester = req.query.semester;
       const query = semester ? { semester } : {};
@@ -321,18 +311,23 @@ app.post("/login", async (req, res) => {
       res.send(result);
     });
 
+
+    // create new routine (admin only)
     app.post("/routines", verifyJWT, verifyAdmin, async (req, res) => {
       const routine = req.body;
       const result = await routinesCollection.insertOne(routine);
       res.send(result);
     });
 
+    // delete routine (admin only)
     app.delete("/routines/:id", verifyJWT, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const result = await routinesCollection.deleteOne({ _id: new ObjectId(id) });
       res.send(result);
     });
 
+
+// update routine (admin or teacher)
 app.patch("/routines/:id", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
   const id = req.params.id;
   const updatedData = req.body; 
@@ -359,6 +354,8 @@ app.patch("/routines/:id", verifyJWT, verifyTeacherOrAdmin, async (req, res) => 
 
 
     // ÷ Attendance routes
+
+    // get attendance with optional batch and date filters
     app.get("/attendance", verifyJWT, async (req, res) => {
       const { batch, date } = req.query;
       const query = { batch, date };
@@ -366,6 +363,8 @@ app.patch("/routines/:id", verifyJWT, verifyTeacherOrAdmin, async (req, res) => 
       res.send(result);
     });
 
+
+    // post attendance (admin only)
     app.post("/attendance", verifyJWT, verifyAdmin, async (req, res) => {
       const data = req.body; 
       const result = await attendanceCollection.insertMany(data);
@@ -373,21 +372,175 @@ app.patch("/routines/:id", verifyJWT, verifyTeacherOrAdmin, async (req, res) => 
     });
 
 
+    // get attendance for a specific student with optional course filter
+    app.get("/attendance/user/:studentId", verifyJWT, async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { courseCode } = req.query; চায়
+
+    let query = { "students.id": studentId };
+    if (courseCode) query.courseCode = courseCode;
+
+    const records = await attendanceCollection.find(query).toArray();
+    const formattedData = records.map(record => {
+      const studentInfo = record.students.find(s => s.id === studentId);
+      return {
+        date: record.date,
+        courseCode: record.courseCode,
+        status: studentInfo?.status || "absent",
+        batch: record.batch
+      };
+    });
+
+    res.send(formattedData);
+  } catch (err) {
+    res.status(500).send({ message: "Failed to load attendance" });
+  }
+});
+
+// update attendance (admin or teacher)
+app.patch("/attendance/:id", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { students } = req.body; // নতুন স্টুডেন্ট লিস্ট (Status সহ)
+
+    const result = await attendanceCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { students: students, updatedAt: new Date() } }
+    );
+
+    if (result.modifiedCount > 0) {
+      res.send({ message: "Attendance updated successfully" });
+    } else {
+      res.status(404).send({ message: "Attendance record not found" });
+    }
+  } catch (err) {
+    res.status(500).send({ message: "Update failed" });
+  }
+});
+
+// delete attendance (admin only)
+
+app.delete("/attendance/:id", verifyJWT, verifyAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const result = await attendanceCollection.deleteOne({ _id: new ObjectId(id) });
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: "Delete failed" });
+  }
+});
+
+
+
+
     // financial routes
+    // get payments with optional studentId and status filters
     app.get("/payments", verifyJWT, verifyAdmin, async (req, res) => {
-      const result = await paymentsCollection.find().toArray();
-      res.send(result);
-    });
+  const { studentId, status } = req.query;
+  let query = {};
+  if (studentId) query.studentId = studentId;
+  if (status) query.status = status;
 
-    app.post("/payments", verifyJWT, verifyAdmin, async (req, res) => {
-      const payment = req.body;
-      const result = await paymentsCollection.insertOne(payment);
-      res.send(result);
-    });
+  const result = await paymentsCollection.find(query).sort({ date: -1 }).toArray();
+  res.send(result);
+});
 
 
-    // settings routes
+// get payments for a specific student (student can only access their own payments)
+app.get("/my-payments/:email", verifyJWT, async (req, res) => {
+  const email = req.params.email;
+  if (req.decoded.email !== email) {
+    return res.status(403).send({ message: "Forbidden Access" });
+  }
+  const query = { email: email };
+  const result = await paymentsCollection.find(query).sort({ date: -1 }).toArray();
+  res.send(result);
+});
 
+
+// create new payment (admin only)
+app.post("/payments", verifyJWT, verifyAdmin, async (req, res) => {
+  const payment = {
+    ...req.body,
+    date: new Date(), 
+    status: req.body.status || "pending"
+  };
+  const result = await paymentsCollection.insertOne(payment);
+  res.send(result);
+});
+
+// update payment status (admin only)
+app.patch("/payments/:id", verifyJWT, verifyAdmin, async (req, res) => {
+  const id = req.params.id;
+  const { status, transactionId } = req.body;
+  const filter = { _id: new ObjectId(id) };
+  const updateDoc = {
+    $set: {
+      status: status,
+      transactionId: transactionId,
+      updatedAt: new Date()
+    },
+  };
+  const result = await paymentsCollection.updateOne(filter, updateDoc);
+  res.send(result);
+});
+
+
+// delete payment (admin only)
+app.delete("/payments/:id", verifyJWT, verifyAdmin, async (req, res) => {
+  const id = req.params.id;
+  const result = await paymentsCollection.deleteOne({ _id: new ObjectId(id) });
+  res.send(result);
+});
+
+
+
+
+  // settings routes
+app.patch("/update-profile/:email", verifyJWT, async (req, res) => {
+  const email = req.params.email;
+  const updatedData = req.body;
+
+  if (req.decoded.email !== email) {
+    return res.status(403).send({ message: "Forbidden Access" });
+  }
+
+  const filter = { email: email };
+  const updateDoc = {
+    $set: updatedData, 
+  };
+
+  const result = await usersCollection.updateOne(filter, updateDoc);
+  res.send(result);
+});
+
+
+
+app.patch("/change-password/:email", verifyJWT, async (req, res) => {
+  const email = req.params.email;
+  const { oldPassword, newPassword } = req.body;
+
+  const user = await usersCollection.findOne({ email: email });
+  if (!user) return res.status(404).send({ message: "User not found" });
+
+  // পুরানো পাসওয়ার্ড চেক
+  const isMatch = await bcrypt.compare(oldPassword, user.password);
+  if (!isMatch) {
+    return res.status(400).send({ message: "Old password does not match" });
+  }
+
+  // নতুন পাসওয়ার্ড হ্যাশ করা
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+  const result = await usersCollection.updateOne(
+    { email: email },
+    { $set: { password: hashedPassword } }
+  );
+
+  res.send(result);
+});
 
 
 
