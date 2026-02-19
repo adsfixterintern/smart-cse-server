@@ -152,29 +152,6 @@ async function run() {
 
 
     // User related routes
-    app.get("/users", async (req, res) => {
-      try {
-        const email = req.query.email;
-        const role = req.query.role;
-
-        let query = {}; // Default empty object (shob user dekhabe)
-
-        // Jodi query-te email thake, query object-e add hobe
-        if (email) {
-          query.email = email;
-        }
-
-        // Jodi query-te role thake (admin/user), query object-e add hobe
-        if (role) {
-          query.role = role;
-        }
-
-        // Dynamic query diye database search
-        const users = await usersCollection.find(query).toArray();
-        res.send(users);
-      } catch (error) {
-        res.status(500).send({ message: "Internal Server Error", error });
-      }
 
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
@@ -237,21 +214,34 @@ app.post("/login", async (req, res) => {
 
       const result = await usersCollection.insertOne(user);
       res.send(result);
+      }
+       catch (error) {
+      res.status(500).send({ message: "Registration failed", error });
+    }
     });
-    app.delete("/users/:id", async (req, res) => {
-    // হ্যাশ করা পাসওয়ার্ড দিয়ে ইউজার অবজেক্ট তৈরি
-    const newUser = {
-      ...user,
-      password: hashedPassword,
-      createdAt: new Date()
-    };
+    
 
-    const result = await usersCollection.insertOne(newUser);
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({ message: "Registration failed" });
-  }
-});
+
+
+
+//     app.delete("/users/:id", async (req, res) => {
+//     // হ্যাশ করা পাসওয়ার্ড দিয়ে ইউজার অবজেক্ট তৈরি
+//     const newUser = {
+//       ...user,
+//       password: hashedPassword,
+//       createdAt: new Date()
+//     };
+
+//     const result = await usersCollection.insertOne(newUser);
+//     res.send(result);
+//   } catch (error) {
+//     res.status(500).send({ message: "Registration failed" });
+//     }
+    // );
+    
+
+
+
     app.delete("/users/:id",verifyJWT,verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const result = await usersCollection.deleteOne({ _id: new ObjectId(id) });
