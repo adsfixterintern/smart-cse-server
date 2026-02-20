@@ -1,5 +1,4 @@
 require("dotenv").config();
-require('bcryptjs');
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
@@ -7,7 +6,7 @@ const cloudinary = require("cloudinary").v2;
 const multer = require("multer");
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
@@ -114,33 +113,26 @@ async function run() {
     };
 
     // clodinary upload route
-    app.post(
-      "/upload-image",
-      verifyJWT,
-      verifyAdmin,
-      upload.single("image"),
-      async (req, res) => {
-        try {
-          if (!req.file) {
-            return res.status(400).send({ message: "No file uploaded" });
-          }
-          const fileBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+  app.post("/upload-image", verifyJWT, upload.single("image"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).send({ message: "No file uploaded" });
+      }
 
-          const uploadResponse = await cloudinary.uploader.upload(fileBase64, {
-            upload_preset: "smart_cse_preset",
-            folder: "smart_cse_uploads",
-          });
+      const fileBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+      const uploadResponse = await cloudinary.uploader.upload(fileBase64, {
+        upload_preset: "smartcseimage", 
+      });
 
-          res.json({
-            url: uploadResponse.secure_url,
-            public_id: uploadResponse.public_id,
-          });
-        } catch (err) {
-          console.error(err);
-          res.status(500).send({ message: "Image upload failed" });
-        }
-      },
-    );
+      res.json({
+        url: uploadResponse.secure_url,
+        public_id: uploadResponse.public_id,
+      });
+    } catch (err) {
+      console.error("Cloudinary Error:", err);
+      res.status(500).send({ message: "Cloudinary upload failed. Check API keys/Presets." });
+    }
+});
 
     app.delete(
       "/delete-image/:publicId",
@@ -521,50 +513,50 @@ async function run() {
     });
 
     // settings routes
-    app.patch("/update-profile/:email", verifyJWT, async (req, res) => {
-      const email = req.params.email;
-      const updatedData = req.body;
-
-      if (req.decoded.email !== email) {
-        return res.status(403).send({ message: "Forbidden Access" });
-      }
-
-      const filter = { email: email };
-      const updateDoc = {
-        $set: updatedData,
-      };
-
-      const result = await usersCollection.updateOne(filter, updateDoc);
-      res.send(result);
-    });
-
-    app.patch("/change-password/:email", verifyJWT, async (req, res) => {
-      const email = req.params.email;
-      const { oldPassword, newPassword } = req.body;
-
-      const user = await usersCollection.findOne({ email: email });
-      if (!user) return res.status(404).send({ message: "User not found" });
-
-      // পুরানো পাসওয়ার্ড চেক
-      const isMatch = await bcrypt.compare(oldPassword, user.password);
-      if (!isMatch) {
-        return res.status(400).send({ message: "Old password does not match" });
-      }
-
-      // নতুন পাসওয়ার্ড হ্যাশ করা
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(newPassword, salt);
-
-      const result = await usersCollection.updateOne(
-        { email: email },
-        { $set: { password: hashedPassword } },
-      );
-
-      res.send(result);
-    });
+    // get settings (public route, returns default values if not set)
+   app.get("/settings", async (req, res) => {
+  try {
+    const settings = await settingsCollection.findOne({});
+    if (!settings) {
+      return res.send({
+        siteName: "SmartCSE Portal",
+        adminEmail: "admin@university.edu",
+        currentSemester: "Spring 2026",
+        maintenanceMode: false,
+        registrationOpen: true
+      });
+    }
+    res.send(settings);
+  } catch (error) {
+    res.status(500).send({ message: "Error fetching settings" });
+  }
+});
 
 
+// update settings (admin only)
+app.patch("/settings", verifyJWT, verifyAdmin, async (req, res) => {
+  try {
+    const updatedData = req.body;
+    const { _id, ...dataWithoutId } = updatedData;
 
+    const result = await settingsCollection.updateOne(
+      {}, 
+      { 
+        $set: {
+          ...dataWithoutId, 
+          updatedAt: new Date(),
+          updatedBy: req.decoded.email
+        } 
+      },
+      { upsert: true }
+    );
+    
+    res.send({ success: true, message: "Settings updated successfully" });
+  } catch (error) {
+    console.error("Settings Error:", error);
+    res.status(500).send({ message: "Update failed due to database constraints" });
+  }
+});
 
 
 
