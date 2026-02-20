@@ -6,6 +6,7 @@ const cloudinary = require("cloudinary").v2;
 const multer = require("multer");
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
+const bcrypt = require('bcrypt');
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
@@ -266,6 +267,8 @@ async function run() {
       const courses = await coursesCollection.find(query).toArray();
       res.send(courses);
     });
+
+
     app.post("/courses", async (req, res) => {
       const course = req.body;
       const existingCourse = await coursesCollection.findOne({
@@ -278,6 +281,9 @@ async function run() {
       const result = await coursesCollection.insertOne(course);
       res.send(result);
     });
+
+    
+
     app.delete("/courses/:id", async (req, res) => {
       const id = req.params.id;
       const result = await coursesCollection.deleteOne({
