@@ -6,20 +6,19 @@ const cloudinary = require("cloudinary").v2;
 const multer = require("multer");
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
-const bcrypt = require('bcryptjs');
+const bcrypt = require("bcryptjs");
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(cors({
-  origin: [
-    "http://localhost:3000",
-    "https://smart-cse.vercel.app"  
-  ],
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: ["http://localhost:3000", "https://smart-cse.vercel.app"],
+    credentials: true,
+  }),
+);
 
 app.use(express.json());
 
@@ -32,16 +31,16 @@ cloudinary.config({
 });
 
 const calculateGrade = (marks) => {
-  if (marks >= 80) return { grade: "A+", point: 4.00 };
-  if (marks >= 75) return { grade: "A",  point: 3.75 };
-  if (marks >= 70) return { grade: "A-", point: 3.50 };
+  if (marks >= 80) return { grade: "A+", point: 4.0 };
+  if (marks >= 75) return { grade: "A", point: 3.75 };
+  if (marks >= 70) return { grade: "A-", point: 3.5 };
   if (marks >= 65) return { grade: "B+", point: 3.25 };
-  if (marks >= 60) return { grade: "B",  point: 3.00 };
+  if (marks >= 60) return { grade: "B", point: 3.0 };
   if (marks >= 55) return { grade: "B-", point: 2.75 };
-  if (marks >= 50) return { grade: "C+", point: 2.50 };
-  if (marks >= 45) return { grade: "C",  point: 2.25 };
-  if (marks >= 40) return { grade: "D",  point: 2.00 };
-  return { grade: "F", point: 0.00 };
+  if (marks >= 50) return { grade: "C+", point: 2.5 };
+  if (marks >= 45) return { grade: "C", point: 2.25 };
+  if (marks >= 40) return { grade: "D", point: 2.0 };
+  return { grade: "F", point: 0.0 };
 };
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${encodedPass}@cluster0.mdmdo0u.mongodb.net/?retryWrites=true&w=majority`;
@@ -95,11 +94,6 @@ async function run() {
     const resultsCollection = db.collection("results");
     const noticesCollection = db.collection("notices");
 
-
-
-
-
-
     // Admin verification middleware
     const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
@@ -115,7 +109,7 @@ async function run() {
       next();
     };
 
-// Teacher or Admin verification middleware
+    // Teacher or Admin verification middleware
     const verifyTeacherOrAdmin = async (req, res, next) => {
       const email = req.decoded.email;
 
@@ -129,26 +123,35 @@ async function run() {
     };
 
     // clodinary upload route
-  app.post("/upload-image", verifyJWT, upload.single("image"), async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).send({ message: "No file uploaded" });
-      }
+    app.post(
+      "/upload-image",
+      verifyJWT,
+      upload.single("image"),
+      async (req, res) => {
+        try {
+          if (!req.file) {
+            return res.status(400).send({ message: "No file uploaded" });
+          }
 
-      const fileBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
-      const uploadResponse = await cloudinary.uploader.upload(fileBase64, {
-        upload_preset: "smartcseimage", 
-      });
+          const fileBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+          const uploadResponse = await cloudinary.uploader.upload(fileBase64, {
+            upload_preset: "smartcseimage",
+          });
 
-      res.json({
-        url: uploadResponse.secure_url,
-        public_id: uploadResponse.public_id,
-      });
-    } catch (err) {
-      console.error("Cloudinary Error:", err);
-      res.status(500).send({ message: "Cloudinary upload failed. Check API keys/Presets." });
-    }
-});
+          res.json({
+            url: uploadResponse.secure_url,
+            public_id: uploadResponse.public_id,
+          });
+        } catch (err) {
+          console.error("Cloudinary Error:", err);
+          res
+            .status(500)
+            .send({
+              message: "Cloudinary upload failed. Check API keys/Presets.",
+            });
+        }
+      },
+    );
 
     app.delete(
       "/delete-image/:publicId",
@@ -164,11 +167,6 @@ async function run() {
         }
       },
     );
-
-
-
-
-
 
     // User related routes
 
@@ -213,7 +211,7 @@ async function run() {
     });
 
     // get all users (admin only)
-    app.get("/users", verifyJWT,verifyAdmin, async (req, res) => {
+    app.get("/users", verifyJWT, verifyAdmin, async (req, res) => {
       const users = await usersCollection.find().toArray();
       res.send(users);
     });
@@ -374,25 +372,23 @@ app.get("/api/student/dashboard-overview", verifyJWT, async (req, res) => {
 
     // course related routes
 
-// get courses by semester (admin and teachers only)
-app.get("/courses/:semester", verifyJWT, async (req, res) => {
-  try {
-    const sem = req.params.semester; 
-    console.log(sem)
-    const query = { semester: sem }; 
-    
-    const courses = await coursesCollection.find(query).toArray();
-    
-    res.status(200).send(Array.isArray(courses) ? courses : []);
-  } catch (error) {
-    console.error("Course fetch error:", error);
-    res.status(500).send([]);
-  }
-});
+    // get courses by semester (admin and teachers only)
+    app.get("/courses/:semester", verifyJWT, async (req, res) => {
+      try {
+        const sem = req.params.semester;
+        console.log(sem);
+        const query = { semester: sem };
 
+        const courses = await coursesCollection.find(query).toArray();
 
+        res.status(200).send(Array.isArray(courses) ? courses : []);
+      } catch (error) {
+        console.error("Course fetch error:", error);
+        res.status(500).send([]);
+      }
+    });
 
-    app.get("/courses",verifyJWT, async (req, res) => {
+    app.get("/courses", verifyJWT, async (req, res) => {
       const courseCode = req.query.code;
 
       let query = {};
@@ -419,31 +415,37 @@ app.get("/courses/:semester", verifyJWT, async (req, res) => {
   res.send(result);
 });
 
+    app.delete(
+      "/courses/:id",
+      verifyJWT,
+      verifyTeacherOrAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const result = await coursesCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res.send(result);
+      },
+    );
 
-    app.delete("/courses/:id",verifyJWT,verifyTeacherOrAdmin, async (req, res) => {
-      const id = req.params.id;
-      const result = await coursesCollection.deleteOne({
-        _id: new ObjectId(id),
-      });
-      res.send(result);
-    });
+    app.patch(
+      "/courses/:id",
+      verifyJWT,
+      verifyTeacherOrAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const updateData = req.body;
 
+        const result = await coursesCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: updateData },
+        );
 
-    app.patch("/courses/:id",verifyJWT,verifyTeacherOrAdmin, async (req, res) => {
-      const id = req.params.id;
-      const updateData = req.body;
+        res.send(result);
+      },
+    );
 
-      const result = await coursesCollection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: updateData },
-      );
-
-      res.send(result);
-    });
-
-
-
-    app.get("/courses/:code",verifyJWT, async (req, res) => {
+    app.get("/courses/:code", verifyJWT, async (req, res) => {
       const code = Number(req.params.code);
 
       const course = await coursesCollection.findOne({ code });
@@ -455,49 +457,44 @@ app.get("/courses/:semester", verifyJWT, async (req, res) => {
       res.send(course);
     });
 
-
     // get courses assigned to logged in teacher
-  app.get("/teacher-courses", verifyJWT, async (req, res) => {
-  try {
-    const email = req.decoded.email; 
-    const query = { teacherEmail: email }; 
-    const courses = await coursesCollection.find(query).toArray();
-    res.send(courses);
-  } catch (error) {
-    res.status(500).send({ message: "Failed to fetch teacher courses" });
-  }
-});
+    app.get("/teacher-courses", verifyJWT, async (req, res) => {
+      try {
+        const email = req.decoded.email;
+        const query = { teacherEmail: email };
+        const courses = await coursesCollection.find(query).toArray();
+        res.send(courses);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to fetch teacher courses" });
+      }
+    });
 
-
-// get students by semester (admin and teachers only)
-app.get("/students/:semester", verifyJWT, async (req, res) => {
-  try {
-    const semester = req.params.semester;
-    const query = { 
-      role: "student", 
-      semester: semester 
-    };
-    const result = await usersCollection.find(query).project({
-      name: 1,
-      studentId: 1,
-      email: 1
-    }).toArray();
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({ message: "Failed to fetch students" });
-  }
-});
-
-
-
-
-
-
+    // get students by semester (admin and teachers only)
+    app.get("/students/:semester", verifyJWT, async (req, res) => {
+      try {
+        const semester = req.params.semester;
+        const query = {
+          role: "student",
+          semester: semester,
+        };
+        const result = await usersCollection
+          .find(query)
+          .project({
+            name: 1,
+            studentId: 1,
+            email: 1,
+          })
+          .toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to fetch students" });
+      }
+    });
 
     // routines routes
 
     // get routines with optional semester filter
-    app.get("/routines",verifyJWT, async (req, res) => {
+    app.get("/routines", verifyJWT, async (req, res) => {
       const semester = req.query.semester;
       const query = semester ? { semester } : {};
       const result = await routinesCollection.find(query).toArray();
@@ -549,15 +546,6 @@ app.get("/students/:semester", verifyJWT, async (req, res) => {
         }
       },
     );
-
-
-
-
-
-
-
-
-
 
     // ÷ Attendance routes
 
@@ -643,385 +631,379 @@ app.get("/students/:semester", verifyJWT, async (req, res) => {
       }
     });
 
-
-
-
-
     // settings routes
     // get settings (public route, returns default values if not set)
-   app.get("/settings", async (req, res) => {
-  try {
-    const settings = await settingsCollection.findOne({});
-    if (!settings) {
-      return res.send({
-        siteName: "SmartCSE Portal",
-        adminEmail: "admin@university.edu",
-        currentSemester: "Spring 2026",
-        maintenanceMode: false,
-        registrationOpen: true
-      });
-    }
-    res.send(settings);
-  } catch (error) {
-    res.status(500).send({ message: "Error fetching settings" });
-  }
-});
+    app.get("/settings", async (req, res) => {
+      try {
+        const settings = await settingsCollection.findOne({});
+        if (!settings) {
+          return res.send({
+            siteName: "SmartCSE Portal",
+            adminEmail: "admin@university.edu",
+            currentSemester: "Spring 2026",
+            maintenanceMode: false,
+            registrationOpen: true,
+          });
+        }
+        res.send(settings);
+      } catch (error) {
+        res.status(500).send({ message: "Error fetching settings" });
+      }
+    });
 
+    // update settings (admin only)
+    app.patch("/settings", verifyJWT, verifyAdmin, async (req, res) => {
+      try {
+        const updatedData = req.body;
+        const { _id, ...dataWithoutId } = updatedData;
 
-// update settings (admin only)
-  app.patch("/settings", verifyJWT, verifyAdmin, async (req, res) => {
-  try {
-    const updatedData = req.body;
-    const { _id, ...dataWithoutId } = updatedData;
+        const result = await settingsCollection.updateOne(
+          {},
+          {
+            $set: {
+              ...dataWithoutId,
+              updatedAt: new Date(),
+              updatedBy: req.decoded.email,
+            },
+          },
+          { upsert: true },
+        );
 
-    const result = await settingsCollection.updateOne(
-      {}, 
-      { 
-        $set: {
-          ...dataWithoutId, 
-          updatedAt: new Date(),
-          updatedBy: req.decoded.email
-        } 
-      },
-      { upsert: true }
-    );
-    
-    res.send({ success: true, message: "Settings updated successfully" });
-  } catch (error) {
-    console.error("Settings Error:", error);
-    res.status(500).send({ message: "Update failed due to database constraints" });
-  }
-});
-
-
-
-
-
-
-
-
-
-
-
+        res.send({ success: true, message: "Settings updated successfully" });
+      } catch (error) {
+        console.error("Settings Error:", error);
+        res
+          .status(500)
+          .send({ message: "Update failed due to database constraints" });
+      }
+    });
 
     // feedback routes-------------------
     // get feedback with course details
-app.get("/feedback", verifyJWT, async (req, res) => {
-  try {
-    const result = await feedbackCollection.aggregate([
-      {
-        $lookup: {
-          from: "courses", 
-          localField: "courseId",
-          foreignField: "_id", 
-          as: "courseDetails"
-        }
-      },
-      {
-      
-        $unwind: {
-          path: "$courseDetails",
-          preserveNullAndEmptyArrays: true 
-        }
-      },
-      {
-      
-        $sort: { createdAt: -1 }
+    app.get("/feedback", verifyJWT, async (req, res) => {
+      try {
+        const result = await feedbackCollection
+          .aggregate([
+            {
+              $lookup: {
+                from: "courses",
+                localField: "courseId",
+                foreignField: "_id",
+                as: "courseDetails",
+              },
+            },
+            {
+              $unwind: {
+                path: "$courseDetails",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            {
+              $sort: { createdAt: -1 },
+            },
+          ])
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        console.error("Feedback aggregation error:", error);
+        res.status(500).send({ message: "Internal Server Error" });
       }
-    ]).toArray();
-
-    res.send(result);
-  } catch (error) {
-    console.error("Feedback aggregation error:", error);
-    res.status(500).send({ message: "Internal Server Error" });
-  }
-});
-
-
-
-// post feedback
-
- app.post("/feedback", verifyJWT, async (req, res) => {
-  const { courseId, comment, rating } = req.body;
-  const feedback = {
-    courseId: new ObjectId(courseId),
-    comment,
-    rating,
-    studentEmail: req.decoded.email,
-    createdAt: new Date()
-  };
-  const result = await feedbackCollection.insertOne(feedback);
-  res.send(result);
-});
-
-
-
-// delete feedback
-
-app.delete("/feedback/:id", verifyJWT,verifyAdmin, async (req, res) => {
-  try {
-    const id = req.params.id;
-    const result = await feedbackCollection.deleteOne({
-      _id: new ObjectId(id),
     });
-    
-    if (result.deletedCount === 1) {
-      res.send({ success: true, message: "Feedback deleted" });
-    } else {
-      res.status(404).send({ message: "No feedback found with this ID" });
-    }
-  } catch (error) {
-    res.status(500).send({ message: "Delete failed" });
-  }
-});
 
+    // post feedback
 
-// update feedback (only comment and rating, courseId is immutable)
+    app.post("/feedback", verifyJWT, async (req, res) => {
+      const { courseId, comment, rating } = req.body;
+      const feedback = {
+        courseId: new ObjectId(courseId),
+        comment,
+        rating,
+        studentEmail: req.decoded.email,
+        createdAt: new Date(),
+      };
+      const result = await feedbackCollection.insertOne(feedback);
+      res.send(result);
+    });
 
-app.patch("/feedback/:id", verifyJWT, async (req, res) => {
-  try {
-    const id = req.params.id;
-    const { courseCode, ...updatedData } = req.body; 
+    // delete feedback
 
-    const filter = { 
-      _id: new ObjectId(id),
-      courseCode: courseCode 
-    };
+    app.delete("/feedback/:id", verifyJWT, verifyAdmin, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const result = await feedbackCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
 
-    const updateDoc = {
-      $set: updatedData 
-    };
-
-    const result = await feedbackCollection.updateOne(filter, updateDoc);
-
-    if (result.matchedCount > 0) {
-      res.send({ success: true, message: "Feedback updated" });
-    } else {
-      res.status(404).send({ message: "Match not found with ID and Course Code" });
-    }
-  } catch (error) {
-    res.status(500).send({ message: "Update failed" });
-  }
-});
-
-
-
-
-
-
-// faculties routes
-app.get("/faculties", async (req, res) => {
-  try {
-    const result = await facultiesCollection.find().sort({ name: 1 }).toArray();
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({ message: "Failed to fetch faculties" });
-  }
-});
-
-
-
-// add new faculty (admin only)
-app.post("/faculties", verifyJWT, verifyAdmin, async (req, res) => {
-  try {
-    const faculty = {
-      ...req.body,
-      createdAt: new Date(),
-    };
-    const result = await facultiesCollection.insertOne(faculty);
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({ message: "Failed to add faculty" });
-  }
-});
-
-
-
-// update faculty (admin only, _id is immutable)
-app.patch("/faculties/:id", verifyJWT, verifyAdmin, async (req, res) => {
-  try {
-    const id = req.params.id;
-    const { _id, ...dataToUpdate } = req.body;
-
-    const query = { _id: new ObjectId(id) };
-    const updateDoc = {
-      $set: {
-        ...dataToUpdate,
-        lastUpdated: new Date()
+        if (result.deletedCount === 1) {
+          res.send({ success: true, message: "Feedback deleted" });
+        } else {
+          res.status(404).send({ message: "No feedback found with this ID" });
+        }
+      } catch (error) {
+        res.status(500).send({ message: "Delete failed" });
       }
-    };
+    });
 
-    const result = await facultiesCollection.updateOne(query, updateDoc);
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({ message: "Update failed" });
-  }
-});
+    // update feedback (only comment and rating, courseId is immutable)
 
+    app.patch("/feedback/:id", verifyJWT, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { courseCode, ...updatedData } = req.body;
 
-// delete faculty (admin only)
-app.delete("/faculties/:id", verifyJWT, verifyAdmin, async (req, res) => {
-  try {
-    const id = req.params.id;
-    const result = await facultiesCollection.deleteOne({ _id: new ObjectId(id) });
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({ message: "Delete operation failed" });
-  }
-});
+        const filter = {
+          _id: new ObjectId(id),
+          courseCode: courseCode,
+        };
 
+        const updateDoc = {
+          $set: updatedData,
+        };
 
+        const result = await feedbackCollection.updateOne(filter, updateDoc);
 
+        if (result.matchedCount > 0) {
+          res.send({ success: true, message: "Feedback updated" });
+        } else {
+          res
+            .status(404)
+            .send({ message: "Match not found with ID and Course Code" });
+        }
+      } catch (error) {
+        res.status(500).send({ message: "Update failed" });
+      }
+    });
 
+    // faculties routes
+    app.get("/faculties", async (req, res) => {
+      try {
+        const result = await facultiesCollection
+          .find()
+          .sort({ name: 1 })
+          .toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to fetch faculties" });
+      }
+    });
 
-// results routes
+    // add new faculty (admin only)
+    app.post("/faculties", verifyJWT, verifyAdmin, async (req, res) => {
+      try {
+        const faculty = {
+          ...req.body,
+          createdAt: new Date(),
+        };
+        const result = await facultiesCollection.insertOne(faculty);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to add faculty" });
+      }
+    });
 
+    // update faculty (admin only, _id is immutable)
+    app.patch("/faculties/:id", verifyJWT, verifyAdmin, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { _id, ...dataToUpdate } = req.body;
 
+        const query = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: {
+            ...dataToUpdate,
+            lastUpdated: new Date(),
+          },
+        };
 
-// post result (admin only, calculates grade and point based on marks)
-app.post("/results", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
-  try {
-    const { 
-      studentEmail, studentId, courseCode, courseName, semester, 
-      ct, mid, attendance, presentation, assignment, finalMark 
-    } = req.body;
+        const result = await facultiesCollection.updateOne(query, updateDoc);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Update failed" });
+      }
+    });
 
-    // টোটাল ক্যালকুলেশন
-    const totalMarks = 
-      Number(ct || 0) + Number(mid || 0) + Number(attendance || 0) + 
-      Number(presentation || 0) + Number(assignment || 0) + Number(finalMark || 0);
+    // delete faculty (admin only)
+    app.delete("/faculties/:id", verifyJWT, verifyAdmin, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const result = await facultiesCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Delete operation failed" });
+      }
+    });
 
-    const { grade, point } = calculateGrade(totalMarks);
+    // results routes
 
-    const resultDoc = {
-      studentEmail,
-      studentId,
-      courseCode,
-      courseName,
-      semester: semester.toString(),
-      marks: totalMarks, // Total sum
-      breakdown: {
-        ct: Number(ct || 0),
-        mid: Number(mid || 0),
-        attendance: Number(attendance || 0),
-        presentation: Number(presentation || 0),
-        assignment: Number(assignment || 0),
-        finalMark: Number(finalMark || 0)
+    // post result (admin only, calculates grade and point based on marks)
+    app.post("/results", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
+      try {
+        const {
+          studentEmail,
+          studentId,
+          courseCode,
+          courseName,
+          semester,
+          ct,
+          mid,
+          attendance,
+          presentation,
+          assignment,
+          finalMark,
+        } = req.body;
+
+        // টোটাল ক্যালকুলেশন
+        const totalMarks =
+          Number(ct || 0) +
+          Number(mid || 0) +
+          Number(attendance || 0) +
+          Number(presentation || 0) +
+          Number(assignment || 0) +
+          Number(finalMark || 0);
+
+        const { grade, point } = calculateGrade(totalMarks);
+
+        const resultDoc = {
+          studentEmail,
+          studentId,
+          courseCode,
+          courseName,
+          semester: semester.toString(),
+          marks: totalMarks, // Total sum
+          breakdown: {
+            ct: Number(ct || 0),
+            mid: Number(mid || 0),
+            attendance: Number(attendance || 0),
+            presentation: Number(presentation || 0),
+            assignment: Number(assignment || 0),
+            finalMark: Number(finalMark || 0),
+          },
+          grade,
+          point,
+          createdAt: new Date(),
+        };
+
+        const result = await resultsCollection.insertOne(resultDoc);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to input result" });
+      }
+    });
+
+    // get results for logged in student, with optional semester filter
+    app.get("/my-results", verifyJWT, async (req, res) => {
+      try {
+        const email = req.decoded.email;
+        const query = { studentEmail: email };
+        const results = await resultsCollection
+          .find(query)
+          .sort({ semester: -1 })
+          .toArray();
+        res.send(results);
+      } catch (error) {
+        res.status(500).send({ message: "Error fetching results" });
+      }
+    });
+
+    // get results for a specific course
+    app.get(
+      "/results/course/:courseCode",
+      verifyJWT,
+      verifyTeacherOrAdmin,
+      async (req, res) => {
+        try {
+          const code = req.params.courseCode;
+          const query = { courseCode: code };
+          const results = await resultsCollection.find(query).toArray();
+          res.send(results);
+        } catch (error) {
+          res.status(500).send({ message: "Error fetching course results" });
+        }
       },
-      grade,
-      point,
-      createdAt: new Date()
-    };
-
-    const result = await resultsCollection.insertOne(resultDoc);
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({ message: "Failed to input result" });
-  }
-});
-
-
-// get results for logged in student, with optional semester filter
-app.get("/my-results", verifyJWT, async (req, res) => {
-  try {
-    const email = req.decoded.email; 
-    const query = { studentEmail: email };
-    const results = await resultsCollection.find(query).sort({ semester: -1 }).toArray();
-    res.send(results);
-  } catch (error) {
-    res.status(500).send({ message: "Error fetching results" });
-  }
-});
-
-// get results for a specific course 
-app.get("/results/course/:courseCode", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
-  try {
-    const code = req.params.courseCode;
-    const query = { courseCode: code };
-    const results = await resultsCollection.find(query).toArray();
-    res.send(results);
-  } catch (error) {
-    res.status(500).send({ message: "Error fetching course results" });
-  }
-});
-
-// update result (admin or teacher, if marks are updated, grade and point are recalculated)
-app.patch("/results/:id", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
-  try {
-    const id = req.params.id;
-    const updatedBreakdown = req.body; 
-
-    const totalMarks = Object.values(updatedBreakdown).reduce((sum, val) => sum + Number(val || 0), 0);
-    
-    const { grade, point } = calculateGrade(totalMarks);
-
-    const updateDoc = {
-      $set: {
-        breakdown: updatedBreakdown,
-        marks: totalMarks,
-        grade,
-        point,
-        updatedAt: new Date()
-      }
-    };
-
-    const result = await resultsCollection.updateOne(
-      { _id: new ObjectId(id) },
-      updateDoc
     );
 
-    res.send(result);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({ message: "Update failed" });
-  }
-});
+    // update result (admin or teacher, if marks are updated, grade and point are recalculated)
+    app.patch(
+      "/results/:id",
+      verifyJWT,
+      verifyTeacherOrAdmin,
+      async (req, res) => {
+        try {
+          const id = req.params.id;
+          const updatedBreakdown = req.body;
 
+          const totalMarks = Object.values(updatedBreakdown).reduce(
+            (sum, val) => sum + Number(val || 0),
+            0,
+          );
 
+          const { grade, point } = calculateGrade(totalMarks);
 
-// delete result 
-app.delete("/results/:id", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
-  try {
-    const id = req.params.id;
-    const result = await resultsCollection.deleteOne({ _id: new ObjectId(id) });
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({ message: "Delete failed" });
-  }
-});
+          const updateDoc = {
+            $set: {
+              breakdown: updatedBreakdown,
+              marks: totalMarks,
+              grade,
+              point,
+              updatedAt: new Date(),
+            },
+          };
 
+          const result = await resultsCollection.updateOne(
+            { _id: new ObjectId(id) },
+            updateDoc,
+          );
 
-// get transcript for logged in student, with CGPA calculation and total courses count
-app.get("/my-transcript", verifyJWT, async (req, res) => {
-  try {
-    const email = req.decoded.email;
-    const results = await resultsCollection.find({ studentEmail: email }).toArray();
+          res.send(result);
+        } catch (error) {
+          console.error(error);
+          res.status(500).send({ message: "Update failed" });
+        }
+      },
+    );
 
-    const totalPoints = results.reduce((sum, res) => sum + res.point, 0);
-    const cgpa = results.length > 0 ? (totalPoints / results.length).toFixed(2) : 0;
+    // delete result
+    app.delete(
+      "/results/:id",
+      verifyJWT,
+      verifyTeacherOrAdmin,
+      async (req, res) => {
+        try {
+          const id = req.params.id;
+          const result = await resultsCollection.deleteOne({
+            _id: new ObjectId(id),
+          });
+          res.send(result);
+        } catch (error) {
+          res.status(500).send({ message: "Delete failed" });
+        }
+      },
+    );
 
-    res.send({ 
-      results, 
-      cgpa: parseFloat(cgpa), 
-      totalCourses: results.length 
+    // get transcript for logged in student, with CGPA calculation and total courses count
+    app.get("/my-transcript", verifyJWT, async (req, res) => {
+      try {
+        const email = req.decoded.email;
+        const results = await resultsCollection
+          .find({ studentEmail: email })
+          .toArray();
+
+        const totalPoints = results.reduce((sum, res) => sum + res.point, 0);
+        const cgpa =
+          results.length > 0 ? (totalPoints / results.length).toFixed(2) : 0;
+
+        res.send({
+          results,
+          cgpa: parseFloat(cgpa),
+          totalCourses: results.length,
+        });
+      } catch (error) {
+        res.status(500).send({ message: "Transcript error" });
+      }
     });
-  } catch (error) {
-    res.status(500).send({ message: "Transcript error" });
-  }
-});
-
-
-
-// get all results (admin only, sorted by creation date)
-app.get("/results/all", verifyJWT, verifyAdmin, async (req, res) => {
-  try {
-    const results = await resultsCollection.find().sort({ createdAt: -1 }).toArray();
-    res.send(results);
-  } catch (error) {
-    res.status(500).send({ message: "Error fetching data" });
-  }
-});
-
 
 // gnotices routes
 
@@ -1125,9 +1107,9 @@ app.delete("/notices/:id", verifyJWT, verifyAdmin, async (req, res) => {
       console.log(`Server running on port ${port}`);
     });
 
-    module.exports = app; 
+    module.exports = app;
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.NODE_ENV !== "production") {
       app.listen(port, () => {
         console.log(`Server running on port ${port}`);
       });
