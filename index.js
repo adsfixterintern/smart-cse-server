@@ -258,16 +258,27 @@ async function run() {
     });
 
     app.patch("/users/:id", async (req, res) => {
-      const id = req.params.id;
-      const updateData = req.body;
+  try {
+    const id = req.params.id;
+    const updateData = req.body;
 
-      const result = await usersCollection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: updateData },
-      );
+    delete updateData._id;
 
-      res.send(result);
-    });
+    const result = await usersCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updateData }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).send({ message: "User not found" });
+    }
+
+    res.send({ success: true, result });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: "Update process failed" });
+  }
+});
 
     // get user by email (for profile page)
     app.get("/users/email/:email", verifyJWT, async (req, res) => {
@@ -284,7 +295,40 @@ async function run() {
       }
 
       res.send(user);
+    }); 
+
+
+    app.get("/admin-stats", verifyJWT, verifyAdmin, async (req, res) => {
+  try {
+    const totalStudents = await usersCollection.countDocuments({ role: "student" });
+    const totalTeachers = await usersCollection.countDocuments({ role: "teacher" });
+    const pendingUsersCount = await usersCollection.countDocuments({ status: "pending" });
+
+    
+    const pendingUsersList = await usersCollection
+      .find({ status: "pending" })
+      .limit(5)
+      .toArray();
+    const totalNotices = await noticesCollection.countDocuments();
+
+    res.send({
+      totalStudents,
+      totalTeachers,
+      pendingUsersCount,
+      totalNotices,
+      pendingUsersList,
     });
+  } catch (error) {
+    console.error("Admin stats error:", error);
+    res.status(500).send({ message: "Internal server error" });
+  }
+});
+
+
+
+
+
+
 
     // course related routes
 
