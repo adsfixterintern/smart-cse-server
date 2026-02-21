@@ -88,11 +88,11 @@ async function run() {
     const coursesCollection = db.collection("courses");
     const routinesCollection = db.collection("routines");
     const attendanceCollection = db.collection("attendance");
-    const paymentsCollection = db.collection("payments");
     const settingsCollection = db.collection("settings");
     const feedbackCollection = db.collection("feedback");
     const facultiesCollection = db.collection("faculties");
     const resultsCollection = db.collection("results");
+    const noticesCollection = db.collection("notices");
 
     // Admin verification middleware
     const verifyAdmin = async (req, res, next) => {
@@ -918,18 +918,93 @@ async function run() {
       }
     });
 
-    // get all results (admin only, sorted by creation date)
-    app.get("/results/all", verifyJWT, verifyAdmin, async (req, res) => {
-      try {
-        const results = await resultsCollection
-          .find()
-          .sort({ createdAt: -1 })
-          .toArray();
-        res.send(results);
-      } catch (error) {
-        res.status(500).send({ message: "Error fetching data" });
+// gnotices routes
+
+// get all notices, sorted by creation date
+app.get("/notices", verifyJWT, async (req, res) => {
+  try {
+    const result = await noticesCollection
+      .find()
+      .sort({ priority: -1, createdAt: -1 }) 
+      .toArray();
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to fetch notices" });
+  }
+});
+
+
+// post new notice (admin only)
+app.post("/notices", verifyJWT, verifyAdmin, async (req, res) => {
+  try {
+    const { title, description, category, priority, imageUrl, publicId } = req.body;
+
+    const notice = {
+      title,
+      description,
+      category: category || "General",
+      priority: priority || "Normal",
+      imageUrl: imageUrl || null, 
+      imagePublicId: publicId || null, 
+      postedBy: req.decoded.email,
+      createdAt: new Date(),
+    };
+    
+    const result = await noticesCollection.insertOne(notice);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to post notice" });
+  }
+});
+
+
+//update notice (admin only, _id is immutable, if priority is updated, it will affect the order of notices)
+app.patch("/notices/:id", verifyJWT, verifyAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const updatedData = req.body;
+    delete updatedData._id;
+
+    const result = await noticesCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { 
+        $set: { 
+          ...updatedData, 
+          updatedAt: new Date() 
+        } 
       }
-    });
+    );
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Update failed" });
+  }
+});
+
+
+
+// delete notice (admin only)
+app.delete("/notices/:id", verifyJWT, verifyAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    
+    const notice = await noticesCollection.findOne({ _id: new ObjectId(id) });
+    
+    if (!notice) {
+      return res.status(404).send({ message: "Notice not found" });
+    }
+
+    if (notice.imagePublicId) {
+      await cloudinary.uploader.destroy(notice.imagePublicId);
+    }
+
+    const result = await noticesCollection.deleteOne({ _id: new ObjectId(id) });
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: "Delete failed" });
+  }
+});
+
 
     await client.connect();
     console.log("Connected to MongoDB");
