@@ -326,6 +326,46 @@ async function run() {
 
 
 
+// GET /api/student/dashboard-overview
+app.get("/api/student/dashboard-overview", verifyJWT, async (req, res) => {
+  const email = req.decoded.email;
+
+  try {
+    const student = await usersCollection.findOne({ email });
+    
+    const attendance = await attendanceCollection.find({ studentEmail: email }).toArray();
+    const attendanceRate = attendance.length > 0 
+      ? (attendance.filter(a => a.status === 'present').length / attendance.length) * 100 
+      : 0;
+
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    const schedule = await scheduleCollection.find({ day: today }).toArray();
+
+    const now = new Date();
+    const deadlines = await assignmentsCollection.find({
+      dueDate: { $gt: now.toISOString() }
+    }).limit(3).toArray();
+
+    const courses = await coursesCollection.find({ enrolledStudents: email }).toArray();
+
+    res.send({
+      stats: {
+        attendanceRate: attendanceRate.toFixed(1) + "%",
+        cgpa: student?.cgpa || "0.00",
+        enrolledCourses: courses.length,
+        pendingTasks: deadlines.length
+      },
+      todaySchedule: schedule,
+      deadlines: deadlines,
+      notifications: await notificationsCollection.find({ target: email }).limit(3).toArray(),
+      courseProgress: courses
+    });
+  } catch (error) {
+    res.status(500).send({ message: "Dashboard error", error });
+  }
+});
+
+
 
 
 
@@ -359,18 +399,21 @@ async function run() {
       res.send(courses);
     });
 
-    app.post("/courses", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
-      const course = req.body;
-      const existingCourse = await coursesCollection.findOne({
-        courseCode: course.code,
-      });
 
-      if (existingCourse) {
-        return res.status(409).send({ message: "Course already exists" });
-      }
-      const result = await coursesCollection.insertOne(course);
-      res.send(result);
-    });
+  app.post("/courses", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
+  const course = req.body;
+
+  const existingCourse = await coursesCollection.findOne({
+    code: course.code, 
+  });
+
+  if (existingCourse) {
+    return res.status(409).send({ message: "Course already exists with this code" });
+  }
+  
+  const result = await coursesCollection.insertOne(course);
+  res.send(result);
+});
 
     app.delete(
       "/courses/:id",
