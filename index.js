@@ -15,7 +15,7 @@ const port = process.env.PORT || 3000;
 
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://smart-cse-seven.vercel.app"],
+    origin: ["http://localhost:3000", "https://smart-cse.vercel.app"],
     credentials: true,
   }),
 );
