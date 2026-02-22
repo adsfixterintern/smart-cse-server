@@ -24,6 +24,6 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.11",
-    "vercel": "^50.22.0"
+    "vercel": "^50.22.1"
   }
 }
