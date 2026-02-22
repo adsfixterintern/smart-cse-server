@@ -388,7 +388,7 @@ app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
       courseProgress: results.slice(0, 3).map(r => ({
         name: r.courseName,
         code: r.courseCode,
-        progress: 100 // রেজাল্ট আসা মানে কোর্স শেষ
+        progress: 100 
       }))
     });
   } catch (error) {
@@ -595,23 +595,21 @@ app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
 
         // Get monthly attendance
     app.get("/attendance/monthly", verifyJWT, async (req, res) => {
-      const { semester, batch, month } = req.query;
+  const { semester, batch, month, course } = req.query;
+  const year = new Date().getFullYear();
+  
+  const formattedMonth = month.padStart(2, "0");
+  const datePattern = new RegExp(`^${year}-${formattedMonth}-`);
+  const query = {
+    semester,
+    batch,
+    course,
+    date: { $regex: datePattern }
+  };
 
-      const year = new Date().getFullYear();
-      const startDate = `${year}-${month.padStart(2, "0")}-01`;
-      const endDate = `${year}-${month.padStart(2, "0")}-31`;
-
-      const result = await attendanceCollection
-        .find({
-          semester,
-          batch,
-          date: { $gte: startDate, $lte: endDate },
-        })
-        .toArray();
-
-      res.send(result);
-    });
-
+  const result = await attendanceCollection.find(query).sort({ date: 1 }).toArray();
+  res.send(result);
+});
     // post attendance (admin only)
     app.post(
       "/attendance",
@@ -698,6 +696,31 @@ app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
     });
 
 
+    app.get("/attendance/check", verifyJWT, async (req, res) => {
+  const { semester, batch, course, date } = req.query;
+  const query = { semester, batch, course, date };
+  const result = await attendanceCollection.findOne(query);
+  res.send(result); 
+});
+
+
+app.post("/attendance/upsert", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
+  const data = req.body;
+  const { semester, batch, course, date } = data;
+
+  const filter = { semester, batch, course, date };
+  const updateDoc = {
+    $set: {
+      teacher: data.teacher,
+      attendance: data.attendance, // { studentId: "P", ... }
+      updatedAt: new Date()
+    }
+  };
+
+  const options = { upsert: true }; // এটিই ডুপ্লিকেট রোধ করবে
+  const result = await attendanceCollection.updateOne(filter, updateDoc, options);
+  res.send(result);
+});
 
 
     
@@ -918,6 +941,16 @@ app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
     });
 
     // results routes
+
+    // get all results (admin only)
+    app.get("/results/all", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
+      try {
+        const results = await resultsCollection.find().toArray();
+        res.send(results);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to fetch results" });
+      }
+    });
 
     // post result (admin only, calculates grade and point based on marks)
     app.post("/results", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
