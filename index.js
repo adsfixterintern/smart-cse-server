@@ -72,8 +72,6 @@ const verifyJWT = (req, res, next) => {
   const token = authHeader.split(" ")[1];
 
   jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-    console.log("JWT error:", err);
-    console.log("Decoded:", decoded);
     if (err) {
       return res.status(403).send({ message: "Forbidden access" });
     }
@@ -327,54 +325,80 @@ async function run() {
 });
 
 
-
-// GET /api/student/dashboard-overview
-app.get("/api/student/dashboard-overview", verifyJWT, async (req, res) => {
-  const email = req.decoded.email;
-
+// student dashboard stats route
+app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
   try {
-    const student = await usersCollection.findOne({ email });
-    
-    const attendance = await attendanceCollection.find({ studentEmail: email }).toArray();
-    const attendanceRate = attendance.length > 0 
-      ? (attendance.filter(a => a.status === 'present').length / attendance.length) * 100 
+    const email = req.decoded.email;
+    const user = await usersCollection.findOne({ email });
+    if (!user) return res.status(404).send({ message: "User not found" });
+
+    const studentIdStr = user._id.toString();
+    const semester = user.semester || "1";
+
+    // ১. এটেনডেন্স ক্যালকুলেশন (আপনার ডাটা স্ট্রাকচার অনুযায়ী)
+    const attendanceRecords = await attendanceCollection.find({
+      semester: semester,
+      [`attendance.${studentIdStr}`]: { $exists: true }
+    }).toArray();
+
+    let presentCount = 0;
+    attendanceRecords.forEach(record => {
+      const status = record.attendance[studentIdStr];
+      // P = Present, L = Late (Late কেও উপস্থিতি ধরা হয়েছে)
+      if (status === "P" || status === "L") presentCount++;
+    });
+
+    const attendanceRate = attendanceRecords.length > 0 
+      ? Math.round((presentCount / attendanceRecords.length) * 100) 
       : 0;
 
-    const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-    const schedule = await scheduleCollection.find({ day: today }).toArray();
+    const coursesCount = await coursesCollection.countDocuments({ semester: semester });
+    const results = await resultsCollection.find({ studentEmail: email }).toArray();
+    const totalPoints = results.reduce((sum, r) => sum + (r.point || 0), 0);
+    const cgpa = results.length > 0 ? (totalPoints / results.length).toFixed(2) : "0.00";
 
-    const now = new Date();
-    const deadlines = await assignmentsCollection.find({
-      dueDate: { $gt: now.toISOString() }
-    }).limit(3).toArray();
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const today = days[new Date().getDay()];
+    const routines = await routinesCollection.find({ semester: semester, day: today }).toArray();
 
-    const courses = await coursesCollection.find({ enrolledStudents: email }).toArray();
+
+    const recentNotices = await noticesCollection.find().sort({ createdAt: -1 }).limit(3).toArray();
 
     res.send({
       stats: {
-        attendanceRate: attendanceRate.toFixed(1) + "%",
-        cgpa: student?.cgpa || "0.00",
-        enrolledCourses: courses.length,
-        pendingTasks: deadlines.length
+        attendanceRate: attendanceRate,
+        totalClasses: attendanceRecords.length,
+        presentDays: presentCount,
+        cgpa: cgpa,
+        enrolledCourses: coursesCount,
+        pendingTasks: 3
       },
-      todaySchedule: schedule,
-      deadlines: deadlines,
-      notifications: await notificationsCollection.find({ target: email }).limit(3).toArray(),
-      courseProgress: courses
+      todaySchedule: routines.map(r => ({
+        time: r.startTime,
+        subject: r.courseName,
+        room: r.roomNo,
+        instructor: r.teacherName,
+        type: r.type || "Lecture"
+      })),
+      recentNotifications: recentNotices.map(n => ({
+        title: n.title,
+        description: n.description.substring(0, 60) + "...",
+        time: "Just Now"
+      })),
+      courseProgress: results.slice(0, 3).map(r => ({
+        name: r.courseName,
+        code: r.courseCode,
+        progress: 100 // রেজাল্ট আসা মানে কোর্স শেষ
+      }))
     });
   } catch (error) {
-    res.status(500).send({ message: "Dashboard error", error });
+    console.error(error);
+    res.status(500).send({ message: "Internal server error" });
   }
 });
 
-        const courses = await coursesCollection.find(query).toArray();
 
-        res.status(200).send(Array.isArray(courses) ? courses : []);
-      } catch (error) {
-        console.error("Course fetch error:", error);
-        res.status(500).send([]);
-      }
-    });
+
 
 
 
@@ -408,21 +432,18 @@ app.get("/api/student/dashboard-overview", verifyJWT, async (req, res) => {
       res.send(courses);
     });
 
+    app.post("/courses", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
+      const course = req.body;
+      const existingCourse = await coursesCollection.findOne({
+        courseCode: course.code,
+      });
 
-  app.post("/courses", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
-  const course = req.body;
-
-  const existingCourse = await coursesCollection.findOne({
-    code: course.code, 
-  });
-
-  if (existingCourse) {
-    return res.status(409).send({ message: "Course already exists with this code" });
-  }
-  
-  const result = await coursesCollection.insertOne(course);
-  res.send(result);
-});
+      if (existingCourse) {
+        return res.status(409).send({ message: "Course already exists" });
+      }
+      const result = await coursesCollection.insertOne(course);
+      res.send(result);
+    });
 
     app.delete(
       "/courses/:id",
@@ -566,42 +587,19 @@ app.get("/api/student/dashboard-overview", verifyJWT, async (req, res) => {
       res.send(result);
     });
 
-    // Get monthly attendance
-    app.get("/attendance/monthly", verifyJWT, async (req, res) => {
-      const { semester, batch, month } = req.query;
-
-      const year = new Date().getFullYear();
-      const startDate = `${year}-${month.padStart(2, "0")}-01`;
-      const endDate = `${year}-${month.padStart(2, "0")}-31`;
-
-      const result = await attendanceCollection
-        .find({
-          semester,
-          batch,
-          date: { $gte: startDate, $lte: endDate },
-        })
-        .toArray();
-
+    // post attendance (admin only)
+    app.post("/attendance", verifyJWT, verifyAdmin, async (req, res) => {
+      const data = req.body;
+      const result = await attendanceCollection.insertMany(data);
       res.send(result);
     });
-
-    // post attendance (admin only)
-    app.post(
-      "/attendance",
-      verifyJWT,
-      verifyTeacherOrAdmin,
-      async (req, res) => {
-        const data = req.body;
-        const result = await attendanceCollection.insertOne(data);
-        res.send(result);
-      },
-    );
 
     // get attendance for a specific student with optional course filter
     app.get("/attendance/user/:studentId", verifyJWT, async (req, res) => {
       try {
         const { studentId } = req.params;
         const { courseCode } = req.query;
+        চায়;
 
         let query = { "students.id": studentId };
         if (courseCode) query.courseCode = courseCode;
@@ -662,6 +660,11 @@ app.get("/api/student/dashboard-overview", verifyJWT, async (req, res) => {
         res.status(500).send({ message: "Delete failed" });
       }
     });
+
+
+
+
+    
 
     // settings routes
     // get settings (public route, returns default values if not set)
@@ -1052,31 +1055,6 @@ app.get("/notices", verifyJWT, async (req, res) => {
   }
 });
 
-    // feedback routes-------------------
-    // get feedback with course details
-    app.get("/feedback", verifyJWT, async (req, res) => {
-      try {
-        const result = await feedbackCollection
-          .aggregate([
-            {
-              $lookup: {
-                from: "courses",
-                localField: "courseId",
-                foreignField: "_id",
-                as: "courseDetails",
-              },
-            },
-            {
-              $unwind: {
-                path: "$courseDetails",
-                preserveNullAndEmptyArrays: true,
-              },
-            },
-            {
-              $sort: { createdAt: -1 },
-            },
-          ])
-          .toArray();
 
 // post new notice (admin only)
 app.post("/notices", verifyJWT, verifyAdmin, async (req, res) => {
@@ -1101,7 +1079,6 @@ app.post("/notices", verifyJWT, verifyAdmin, async (req, res) => {
   }
 });
 
-    // delete feedback
 
 //update notice (admin only, _id is immutable, if priority is updated, it will affect the order of notices)
 app.patch("/notices/:id", verifyJWT, verifyAdmin, async (req, res) => {
@@ -1125,10 +1102,6 @@ app.patch("/notices/:id", verifyJWT, verifyAdmin, async (req, res) => {
   }
 });
 
-    app.patch("/feedback/:id", verifyJWT, async (req, res) => {
-      try {
-        const id = req.params.id;
-        const { courseCode, ...updatedData } = req.body;
 
 
 // delete notice (admin only)
@@ -1154,10 +1127,6 @@ app.delete("/notices/:id", verifyJWT, verifyAdmin, async (req, res) => {
   }
 });
 
-          const result = await resultsCollection.updateOne(
-            { _id: new ObjectId(id) },
-            updateDoc,
-          );
 
     await client.connect();
     console.log("Connected to MongoDB");
