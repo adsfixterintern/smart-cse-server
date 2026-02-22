@@ -712,12 +712,12 @@ app.post("/attendance/upsert", verifyJWT, verifyTeacherOrAdmin, async (req, res)
   const updateDoc = {
     $set: {
       teacher: data.teacher,
-      attendance: data.attendance, // { studentId: "P", ... }
+      attendance: data.attendance,
       updatedAt: new Date()
     }
   };
 
-  const options = { upsert: true }; // এটিই ডুপ্লিকেট রোধ করবে
+  const options = { upsert: true }; 
   const result = await attendanceCollection.updateOne(filter, updateDoc, options);
   res.send(result);
 });
