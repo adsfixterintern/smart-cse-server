@@ -587,6 +587,37 @@ app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
       res.send(result);
     });
 
+
+        // Get monthly attendance
+    app.get("/attendance/monthly", verifyJWT, async (req, res) => {
+      const { semester, batch, month } = req.query;
+
+      const year = new Date().getFullYear();
+      const startDate = `${year}-${month.padStart(2, "0")}-01`;
+      const endDate = `${year}-${month.padStart(2, "0")}-31`;
+
+      const result = await attendanceCollection
+        .find({
+          semester,
+          batch,
+          date: { $gte: startDate, $lte: endDate },
+        })
+        .toArray();
+
+      res.send(result);
+    });
+
+    // post attendance (admin only)
+    app.post(
+      "/attendance",
+      verifyJWT,
+      verifyTeacherOrAdmin,
+      async (req, res) => {
+        const data = req.body;
+        const result = await attendanceCollection.insertOne(data);
+        res.send(result);
+      },
+    );
     // post attendance (admin only)
     app.post("/attendance", verifyJWT, verifyAdmin, async (req, res) => {
       const data = req.body;
@@ -621,7 +652,7 @@ app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
       }
     });
 
-    // update attendance (admin or teacher)
+    // update attendance
     app.patch(
       "/attendance/:id",
       verifyJWT,
@@ -629,7 +660,7 @@ app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
       async (req, res) => {
         try {
           const id = req.params.id;
-          const { students } = req.body; // নতুন স্টুডেন্ট লিস্ট (Status সহ)
+          const { students } = req.body; 
 
           const result = await attendanceCollection.updateOne(
             { _id: new ObjectId(id) },
@@ -647,7 +678,7 @@ app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
       },
     );
 
-    // delete attendance (admin only)
+    // delete attendance
 
     app.delete("/attendance/:id", verifyJWT, verifyAdmin, async (req, res) => {
       try {
