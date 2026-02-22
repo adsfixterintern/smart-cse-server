@@ -13,13 +13,25 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 const port = process.env.PORT || 3000;
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://smart-cse-seven.vercel.app"
+];
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "https://smart-cse-seven.vercel.app"
-    ],
-    credentials: true
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.indexOf(origin) === -1) {
+        return callback(new Error("Not allowed by CORS"));
+      }
+
+      return callback(null, true);
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
