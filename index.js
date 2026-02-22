@@ -72,6 +72,8 @@ const verifyJWT = (req, res, next) => {
   const token = authHeader.split(" ")[1];
 
   jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    console.log("JWT error:", err);
+    console.log("Decoded:", decoded);
     if (err) {
       return res.status(403).send({ message: "Forbidden access" });
     }
@@ -365,7 +367,14 @@ app.get("/api/student/dashboard-overview", verifyJWT, async (req, res) => {
   }
 });
 
+        const courses = await coursesCollection.find(query).toArray();
 
+        res.status(200).send(Array.isArray(courses) ? courses : []);
+      } catch (error) {
+        console.error("Course fetch error:", error);
+        res.status(500).send([]);
+      }
+    });
 
 
 
@@ -557,19 +566,42 @@ app.get("/api/student/dashboard-overview", verifyJWT, async (req, res) => {
       res.send(result);
     });
 
-    // post attendance (admin only)
-    app.post("/attendance", verifyJWT, verifyAdmin, async (req, res) => {
-      const data = req.body;
-      const result = await attendanceCollection.insertMany(data);
+    // Get monthly attendance
+    app.get("/attendance/monthly", verifyJWT, async (req, res) => {
+      const { semester, batch, month } = req.query;
+
+      const year = new Date().getFullYear();
+      const startDate = `${year}-${month.padStart(2, "0")}-01`;
+      const endDate = `${year}-${month.padStart(2, "0")}-31`;
+
+      const result = await attendanceCollection
+        .find({
+          semester,
+          batch,
+          date: { $gte: startDate, $lte: endDate },
+        })
+        .toArray();
+
       res.send(result);
     });
+
+    // post attendance (admin only)
+    app.post(
+      "/attendance",
+      verifyJWT,
+      verifyTeacherOrAdmin,
+      async (req, res) => {
+        const data = req.body;
+        const result = await attendanceCollection.insertOne(data);
+        res.send(result);
+      },
+    );
 
     // get attendance for a specific student with optional course filter
     app.get("/attendance/user/:studentId", verifyJWT, async (req, res) => {
       try {
         const { studentId } = req.params;
         const { courseCode } = req.query;
-        চায়;
 
         let query = { "students.id": studentId };
         if (courseCode) query.courseCode = courseCode;
@@ -1020,6 +1052,31 @@ app.get("/notices", verifyJWT, async (req, res) => {
   }
 });
 
+    // feedback routes-------------------
+    // get feedback with course details
+    app.get("/feedback", verifyJWT, async (req, res) => {
+      try {
+        const result = await feedbackCollection
+          .aggregate([
+            {
+              $lookup: {
+                from: "courses",
+                localField: "courseId",
+                foreignField: "_id",
+                as: "courseDetails",
+              },
+            },
+            {
+              $unwind: {
+                path: "$courseDetails",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            {
+              $sort: { createdAt: -1 },
+            },
+          ])
+          .toArray();
 
 // post new notice (admin only)
 app.post("/notices", verifyJWT, verifyAdmin, async (req, res) => {
@@ -1044,6 +1101,7 @@ app.post("/notices", verifyJWT, verifyAdmin, async (req, res) => {
   }
 });
 
+    // delete feedback
 
 //update notice (admin only, _id is immutable, if priority is updated, it will affect the order of notices)
 app.patch("/notices/:id", verifyJWT, verifyAdmin, async (req, res) => {
@@ -1067,6 +1125,10 @@ app.patch("/notices/:id", verifyJWT, verifyAdmin, async (req, res) => {
   }
 });
 
+    app.patch("/feedback/:id", verifyJWT, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { courseCode, ...updatedData } = req.body;
 
 
 // delete notice (admin only)
@@ -1092,6 +1154,10 @@ app.delete("/notices/:id", verifyJWT, verifyAdmin, async (req, res) => {
   }
 });
 
+          const result = await resultsCollection.updateOne(
+            { _id: new ObjectId(id) },
+            updateDoc,
+          );
 
     await client.connect();
     console.log("Connected to MongoDB");
