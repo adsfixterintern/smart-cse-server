@@ -539,7 +539,7 @@ app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
     });
 
     // delete routine (admin only)
-    app.delete("/routines/:id", verifyJWT, verifyAdmin, async (req, res) => {
+    app.delete("/routines/:id", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
       const id = req.params.id;
       const result = await routinesCollection.deleteOne({
         _id: new ObjectId(id),
@@ -749,6 +749,11 @@ app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
       }
     });
 
+
+
+
+
+
     // feedback routes-------------------
     // get feedback with course details
     app.get("/feedback", verifyJWT, async (req, res) => {
@@ -785,11 +790,12 @@ app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
     // post feedback
 
     app.post("/feedback", verifyJWT, async (req, res) => {
-      const { courseId, comment, rating } = req.body;
+      const { courseId, comment, rating,courseName } = req.body;
       const feedback = {
         courseId,
         comment,
         rating,
+        courseName,
         studentEmail: req.decoded.email,
         createdAt: new Date(),
       };
@@ -845,6 +851,10 @@ app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
         res.status(500).send({ message: "Update failed" });
       }
     });
+
+
+
+
 
     // faculties routes
     app.get("/faculties", async (req, res) => {
@@ -1076,7 +1086,7 @@ app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
       }
     });
 
-// gnotices routes
+// notices routes
 
 // get all notices, sorted by creation date
 app.get("/notices", verifyJWT, async (req, res) => {
