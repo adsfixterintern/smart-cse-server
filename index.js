@@ -581,11 +581,16 @@ app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
 
     // get attendance with optional batch and date filters
     app.get("/attendance", verifyJWT, async (req, res) => {
-      const { batch, date } = req.query;
-      const query = { batch, date };
-      const result = await attendanceCollection.find(query).toArray();
-      res.send(result);
-    });
+  const { semester, batch, date } = req.query;
+  
+  let query = {};
+  if (semester) query.semester = semester;
+  if (batch) query.batch = batch;
+  if (date) query.date = date;
+
+  const result = await attendanceCollection.find(query).toArray();
+  res.send(result);
+});
 
 
         // Get monthly attendance
@@ -782,7 +787,7 @@ app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
     app.post("/feedback", verifyJWT, async (req, res) => {
       const { courseId, comment, rating } = req.body;
       const feedback = {
-        courseId: new ObjectId(courseId),
+        courseId,
         comment,
         rating,
         studentEmail: req.decoded.email,
