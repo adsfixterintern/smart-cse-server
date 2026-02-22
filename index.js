@@ -211,7 +211,7 @@ async function run() {
     });
 
     // get all users (admin only)
-    app.get("/users", verifyJWT, verifyAdmin, async (req, res) => {
+    app.get("/users", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
       const users = await usersCollection.find().toArray();
       res.send(users);
     });
