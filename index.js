@@ -90,11 +90,11 @@ async function run() {
     const coursesCollection = db.collection("courses");
     const routinesCollection = db.collection("routines");
     const attendanceCollection = db.collection("attendance");
-    const paymentsCollection = db.collection("payments");
     const settingsCollection = db.collection("settings");
     const feedbackCollection = db.collection("feedback");
     const facultiesCollection = db.collection("faculties");
     const resultsCollection = db.collection("results");
+    const noticesCollection = db.collection("notices");
 
     // Admin verification middleware
     const verifyAdmin = async (req, res, next) => {
@@ -146,9 +146,11 @@ async function run() {
           });
         } catch (err) {
           console.error("Cloudinary Error:", err);
-          res.status(500).send({
-            message: "Cloudinary upload failed. Check API keys/Presets.",
-          });
+          res
+            .status(500)
+            .send({
+              message: "Cloudinary upload failed. Check API keys/Presets.",
+            });
         }
       },
     );
@@ -258,16 +260,27 @@ async function run() {
     });
 
     app.patch("/users/:id", async (req, res) => {
-      const id = req.params.id;
-      const updateData = req.body;
+  try {
+    const id = req.params.id;
+    const updateData = req.body;
 
-      const result = await usersCollection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: updateData },
-      );
+    delete updateData._id;
 
-      res.send(result);
-    });
+    const result = await usersCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updateData }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).send({ message: "User not found" });
+    }
+
+    res.send({ success: true, result });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: "Update process failed" });
+  }
+});
 
     // get user by email (for profile page)
     app.get("/users/email/:email", verifyJWT, async (req, res) => {
@@ -284,7 +297,87 @@ async function run() {
       }
 
       res.send(user);
+    }); 
+
+
+    app.get("/admin-stats", verifyJWT, verifyAdmin, async (req, res) => {
+  try {
+    const totalStudents = await usersCollection.countDocuments({ role: "student" });
+    const totalTeachers = await usersCollection.countDocuments({ role: "teacher" });
+    const pendingUsersCount = await usersCollection.countDocuments({ status: "pending" });
+
+    
+    const pendingUsersList = await usersCollection
+      .find({ status: "pending" })
+      .limit(5)
+      .toArray();
+    const totalNotices = await noticesCollection.countDocuments();
+
+    res.send({
+      totalStudents,
+      totalTeachers,
+      pendingUsersCount,
+      totalNotices,
+      pendingUsersList,
     });
+  } catch (error) {
+    console.error("Admin stats error:", error);
+    res.status(500).send({ message: "Internal server error" });
+  }
+});
+
+
+
+// GET /api/student/dashboard-overview
+app.get("/api/student/dashboard-overview", verifyJWT, async (req, res) => {
+  const email = req.decoded.email;
+
+  try {
+    const student = await usersCollection.findOne({ email });
+    
+    const attendance = await attendanceCollection.find({ studentEmail: email }).toArray();
+    const attendanceRate = attendance.length > 0 
+      ? (attendance.filter(a => a.status === 'present').length / attendance.length) * 100 
+      : 0;
+
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    const schedule = await scheduleCollection.find({ day: today }).toArray();
+
+    const now = new Date();
+    const deadlines = await assignmentsCollection.find({
+      dueDate: { $gt: now.toISOString() }
+    }).limit(3).toArray();
+
+    const courses = await coursesCollection.find({ enrolledStudents: email }).toArray();
+
+    res.send({
+      stats: {
+        attendanceRate: attendanceRate.toFixed(1) + "%",
+        cgpa: student?.cgpa || "0.00",
+        enrolledCourses: courses.length,
+        pendingTasks: deadlines.length
+      },
+      todaySchedule: schedule,
+      deadlines: deadlines,
+      notifications: await notificationsCollection.find({ target: email }).limit(3).toArray(),
+      courseProgress: courses
+    });
+  } catch (error) {
+    res.status(500).send({ message: "Dashboard error", error });
+  }
+});
+
+        const courses = await coursesCollection.find(query).toArray();
+
+        res.status(200).send(Array.isArray(courses) ? courses : []);
+      } catch (error) {
+        console.error("Course fetch error:", error);
+        res.status(500).send([]);
+      }
+    });
+
+
+
 
     // course related routes
 
@@ -315,18 +408,21 @@ async function run() {
       res.send(courses);
     });
 
-    app.post("/courses", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
-      const course = req.body;
-      const existingCourse = await coursesCollection.findOne({
-        courseCode: course.code,
-      });
 
-      if (existingCourse) {
-        return res.status(409).send({ message: "Course already exists" });
-      }
-      const result = await coursesCollection.insertOne(course);
-      res.send(result);
-    });
+  app.post("/courses", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
+  const course = req.body;
+
+  const existingCourse = await coursesCollection.findOne({
+    code: course.code, 
+  });
+
+  if (existingCourse) {
+    return res.status(409).send({ message: "Course already exists with this code" });
+  }
+  
+  const result = await coursesCollection.insertOne(course);
+  res.send(result);
+});
 
     app.delete(
       "/courses/:id",
@@ -941,18 +1037,127 @@ async function run() {
       }
     });
 
-    // get all results (admin only, sorted by creation date)
-    app.get("/results/all", verifyJWT, verifyAdmin, async (req, res) => {
+// gnotices routes
+
+// get all notices, sorted by creation date
+app.get("/notices", verifyJWT, async (req, res) => {
+  try {
+    const result = await noticesCollection
+      .find()
+      .sort({ priority: -1, createdAt: -1 }) 
+      .toArray();
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to fetch notices" });
+  }
+});
+
+    // feedback routes-------------------
+    // get feedback with course details
+    app.get("/feedback", verifyJWT, async (req, res) => {
       try {
-        const results = await resultsCollection
-          .find()
-          .sort({ createdAt: -1 })
+        const result = await feedbackCollection
+          .aggregate([
+            {
+              $lookup: {
+                from: "courses",
+                localField: "courseId",
+                foreignField: "_id",
+                as: "courseDetails",
+              },
+            },
+            {
+              $unwind: {
+                path: "$courseDetails",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            {
+              $sort: { createdAt: -1 },
+            },
+          ])
           .toArray();
-        res.send(results);
-      } catch (error) {
-        res.status(500).send({ message: "Error fetching data" });
+
+// post new notice (admin only)
+app.post("/notices", verifyJWT, verifyAdmin, async (req, res) => {
+  try {
+    const { title, description, category, priority, imageUrl, publicId } = req.body;
+
+    const notice = {
+      title,
+      description,
+      category: category || "General",
+      priority: priority || "Normal",
+      imageUrl: imageUrl || null, 
+      imagePublicId: publicId || null, 
+      postedBy: req.decoded.email,
+      createdAt: new Date(),
+    };
+    
+    const result = await noticesCollection.insertOne(notice);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to post notice" });
+  }
+});
+
+    // delete feedback
+
+//update notice (admin only, _id is immutable, if priority is updated, it will affect the order of notices)
+app.patch("/notices/:id", verifyJWT, verifyAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const updatedData = req.body;
+    delete updatedData._id;
+
+    const result = await noticesCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { 
+        $set: { 
+          ...updatedData, 
+          updatedAt: new Date() 
+        } 
       }
-    });
+    );
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Update failed" });
+  }
+});
+
+    app.patch("/feedback/:id", verifyJWT, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { courseCode, ...updatedData } = req.body;
+
+
+// delete notice (admin only)
+app.delete("/notices/:id", verifyJWT, verifyAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    
+    const notice = await noticesCollection.findOne({ _id: new ObjectId(id) });
+    
+    if (!notice) {
+      return res.status(404).send({ message: "Notice not found" });
+    }
+
+    if (notice.imagePublicId) {
+      await cloudinary.uploader.destroy(notice.imagePublicId);
+    }
+
+    const result = await noticesCollection.deleteOne({ _id: new ObjectId(id) });
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: "Delete failed" });
+  }
+});
+
+          const result = await resultsCollection.updateOne(
+            { _id: new ObjectId(id) },
+            updateDoc,
+          );
 
     await client.connect();
     console.log("Connected to MongoDB");
