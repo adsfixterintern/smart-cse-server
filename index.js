@@ -13,8 +13,6 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 const port = process.env.PORT || 3000;
 
-const cors = require("cors");
-
 app.use(
   cors({
     origin: [
@@ -335,44 +333,14 @@ async function run() {
     });
 
     // student dashboard stats route
-    app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
+   app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
       try {
         const email = req.decoded.email;
         const user = await usersCollection.findOne({ email });
         if (!user) return res.status(404).send({ message: "User not found" });
 
-    res.send({
-      stats: {
-        attendanceRate: attendanceRate,
-        totalClasses: attendanceRecords.length,
-        presentDays: presentCount,
-        cgpa: cgpa,
-        enrolledCourses: coursesCount,
-        pendingTasks: 3
-      },
-      todaySchedule: routines.map(r => ({
-        time: r.startTime,
-        subject: r.courseName,
-        room: r.roomNo,
-        instructor: r.teacherName,
-        type: r.type || "Lecture"
-      })),
-      recentNotifications: recentNotices.map(n => ({
-        title: n.title,
-        description: n.description.substring(0, 60) + "...",
-        time: "Just Now"
-      })),
-      courseProgress: results.slice(0, 3).map(r => ({
-        name: r.courseName,
-        code: r.courseCode,
-        progress: 100 
-      }))
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({ message: "Internal server error" });
-  }
-});
+        const studentIdStr = user._id.toString();
+        const semester = user.semester || "1";
 
         // ১. এটেনডেন্স ক্যালকুলেশন (আপনার ডাটা স্ট্রাকচার অনুযায়ী)
         const attendanceRecords = await attendanceCollection
@@ -665,23 +633,22 @@ async function run() {
   const result = await attendanceCollection.find(query).sort({ date: 1 }).toArray();
   res.send(result);
 });
-    // post attendance (admin only)
+    // post attendance (teacher or admin)
     app.post(
       "/attendance",
       verifyJWT,
       verifyTeacherOrAdmin,
       async (req, res) => {
         const data = req.body;
-        const result = await attendanceCollection.insertOne(data);
-        res.send(result);
+        if (Array.isArray(data)) {
+          const result = await attendanceCollection.insertMany(data);
+          res.send(result);
+        } else {
+          const result = await attendanceCollection.insertOne(data);
+          res.send(result);
+        }
       },
     );
-    // post attendance (admin only)
-    app.post("/attendance", verifyJWT, verifyAdmin, async (req, res) => {
-      const data = req.body;
-      const result = await attendanceCollection.insertMany(data);
-      res.send(result);
-    });
 
     // get attendance for a specific student with optional course filter
     app.get("/attendance/user/:studentId", verifyJWT, async (req, res) => {
@@ -1261,6 +1228,8 @@ app.post("/attendance/upsert", verifyJWT, verifyTeacherOrAdmin, async (req, res)
         res.status(500).send({ message: "Delete failed" });
       }
     });
+
+
     app.get(
       "/student-overview",
       verifyJWT,
@@ -1389,16 +1358,14 @@ app.post("/attendance/upsert", verifyJWT, verifyTeacherOrAdmin, async (req, res)
       console.log(`Server running on port ${port}`);
     });
 
-    module.exports = app;
+    app.listen(port, () => {
+      console.log(`Server running on port ${port}`);
+    });
 
-    if (process.env.NODE_ENV !== "production") {
-      app.listen(port, () => {
-        console.log(`Server running on port ${port}`);
-      });
-    }
   } catch (err) {
     console.error(err);
   }
 }
+
 
 run();
