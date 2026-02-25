@@ -328,10 +328,10 @@ async function run() {
 
     // get user by email (for profile page)
     // verifyJWT,
-    app.get("/users/email/:email",  async (req, res) => {
+    app.get("/users/email/:email",verifyJWT,  async (req, res) => {
       const email = req.params.email;
 
-      if (req.decoded.email !== email) {
+      if (req.decoded?.email !== email) {
         return res.status(403).send({ message: "Forbidden Access" });
       }
 
@@ -605,11 +605,30 @@ async function run() {
 
     // create new routine (admin only)
     // verifyJWT, verifyAdmin,
-    app.post("/routines",  async (req, res) => {
-      const routine = req.body;
-      const result = await routinesCollection.insertOne(routine);
-      res.send(result);
+   // create new routine (admin only)
+app.post("/routines", async (req, res) => {
+  try {
+    const routine = req.body;
+
+    const existingConflict = await routinesCollection.findOne({
+      day: routine.day,
+      startTime: routine.startTime,
+      room: routine.room
     });
+
+    if (existingConflict) {
+      return res.status(400).send({ 
+        message: `Conflict: This room (${routine.room}) is already busy at ${routine.startTime} on ${routine.day}` 
+      });
+    }
+
+    // কোনো কনফ্লিক্ট না থাকলে নতুন রুটিন অ্যাড হবে
+    const result = await routinesCollection.insertOne(routine);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Server Error", error });
+  }
+});
 
     // delete routine (admin only)
     // verifyJWT, verifyTeacherOrAdmin,
@@ -784,27 +803,37 @@ async function run() {
     });
 // verifyJWT, verifyTeacherOrAdmin,
 app.post("/attendance/upsert", async (req, res) => {
-      try {
-        const data = req.body;
-        const { semester, course, date } = data;
+  try {
+    const data = req.body;
+    const { semester, course, date, attendance, teacher } = data;
 
-        const filter = { semester, course, date }; 
-        const updateDoc = {
-          $set: {
-            teacher: data.teacher,
-            attendance: data.attendance, 
-            updatedAt: new Date()
-          }
-        };
+    // ১. ফিল্টার তৈরি (একই দিনে, একই সেমিস্টার এবং একই কোর্সের জন্য একটিই রেকর্ড)
+    const filter = { semester, course, date };
 
-        const options = { upsert: true }; 
-        const result = await attendanceCollection.updateOne(filter, updateDoc, options);
-        res.send(result);
-      } catch (err) {
-        res.status(500).send({ message: "Upsert failed", error: err.message });
+    // ২. আপডেট লজিক
+    const updateDoc = {
+      $set: {
+        teacher: teacher,
+        attendance: attendance,
+        updatedAt: new Date()
       }
-    });
+    };
 
+
+    const options = { upsert: true };
+
+    const result = await attendanceCollection.updateOne(filter, updateDoc, options);
+
+  
+    if (result.upsertedCount > 0) {
+      res.status(201).send({ message: "Attendance added successfully", type: "inserted", result });
+    } else {
+      res.status(200).send({ message: "Attendance updated successfully", type: "updated", result });
+    }
+  } catch (err) {
+    res.status(500).send({ message: "Failed to sync attendance", error: err.message });
+  }
+});
     
 
     // settings routes
