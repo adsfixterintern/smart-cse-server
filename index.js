@@ -138,6 +138,7 @@ async function run() {
     const resultsCollection = db.collection("results");
     const noticesCollection = db.collection("notices");
     const classroomsCollection = db.collection("classrooms");
+    const classSchedulesCollection = db.collection("classSchedules");
 
     // Admin verification middleware
     const verifyAdmin = async (req, res, next) => {
@@ -668,22 +669,28 @@ async function run() {
 
     // Get monthly attendance
     // verifyJWT,
-    app.get("/attendance/monthly",  async (req, res) => {
-  const { semester, batch, month, course } = req.query;
-  const year = new Date().getFullYear();
-  
-  const formattedMonth = month.padStart(2, "0");
-  const datePattern = new RegExp(`^${year}-${formattedMonth}-`);
-  const query = {
-    semester,
-    batch,
-    course,
-    date: { $regex: datePattern }
-  };
+ app.get("/attendance/monthly", async (req, res) => {
+      try {
+        const { semester, month, course } = req.query;
+        const year = new Date().getFullYear();
+        
+        const formattedMonth = month.padStart(2, "0");
+        const datePattern = new RegExp(`^${year}-${formattedMonth}-`);
+        
+        const query = {
+          semester,
+          course,
+          date: { $regex: datePattern }
+        };
 
-  const result = await attendanceCollection.find(query).sort({ date: 1 }).toArray();
-  res.send(result);
-});
+        const result = await attendanceCollection.find(query).sort({ date: 1 }).toArray();
+        res.send(result);
+      } catch (err) {
+        res.status(500).send({ message: "Failed to load monthly data" });
+      }
+    });
+
+
     // post attendance (teacher or admin)
     app.post(
       "/attendance",
@@ -703,29 +710,28 @@ async function run() {
 
     // get attendance for a specific student with optional course filter
     // verifyJWT,
-    app.get("/attendance/user/:studentId",  async (req, res) => {
+    app.get("/attendance/user/:studentId", async (req, res) => {
       try {
         const { studentId } = req.params;
-        const { courseCode } = req.query;
-
-
-        let query = { "students.id": studentId };
-        if (courseCode) query.courseCode = courseCode;
+        const { course } = req.query;
+        let query = { [`attendance.${studentId}`]: { $exists: true } };
+        if (course) query.course = course;
 
         const records = await attendanceCollection.find(query).toArray();
+        
         const formattedData = records.map((record) => {
-          const studentInfo = record.students.find((s) => s.id === studentId);
           return {
             date: record.date,
-            courseCode: record.courseCode,
-            status: studentInfo?.status || "absent",
-            batch: record.batch,
+            course: record.course,
+            status: record.attendance[studentId] || "A",
+            semester: record.semester,
           };
         });
 
         res.send(formattedData);
       } catch (err) {
-        res.status(500).send({ message: "Failed to load attendance" });
+        console.error(err);
+        res.status(500).send({ message: "Failed to load user attendance" });
       }
     });
 
@@ -770,32 +776,34 @@ async function run() {
     });
 // verifyJWT,
 
-    app.get("/attendance/check",  async (req, res) => {
-  const { semester, batch, course, date } = req.query;
-  const query = { semester, batch, course, date };
-  const result = await attendanceCollection.findOne(query);
-  res.send(result); 
-});
+ app.get("/attendance/check", async (req, res) => {
+      const { semester, course, date } = req.query;
+      const query = { semester, course, date };
+      const result = await attendanceCollection.findOne(query);
+      res.send(result || {}); 
+    });
 // verifyJWT, verifyTeacherOrAdmin,
+app.post("/attendance/upsert", async (req, res) => {
+      try {
+        const data = req.body;
+        const { semester, course, date } = data;
 
-app.post("/attendance/upsert",  async (req, res) => {
-  const data = req.body;
-  const { semester, batch, course, date } = data;
+        const filter = { semester, course, date }; 
+        const updateDoc = {
+          $set: {
+            teacher: data.teacher,
+            attendance: data.attendance, 
+            updatedAt: new Date()
+          }
+        };
 
-  const filter = { semester, batch, course, date };
-  const updateDoc = {
-    $set: {
-      teacher: data.teacher,
-      attendance: data.attendance,
-      updatedAt: new Date()
-    }
-  };
-
-  const options = { upsert: true }; 
-  const result = await attendanceCollection.updateOne(filter, updateDoc, options);
-  res.send(result);
-});
-
+        const options = { upsert: true }; 
+        const result = await attendanceCollection.updateOne(filter, updateDoc, options);
+        res.send(result);
+      } catch (err) {
+        res.status(500).send({ message: "Upsert failed", error: err.message });
+      }
+    });
 
     
 
@@ -1450,6 +1458,95 @@ app.delete("/classrooms/:id", verifyJWT, verifyAdmin, async (req, res) => {
   const result = await classroomsCollection.deleteOne({ _id: new ObjectId(id) });
   res.send(result);
 });
+
+
+
+// class assignment route with conflict check
+app.post("/class-assign",verifyTeacherOrAdmin,verifyJWT, async (req, res) => {
+  try {
+    const classData = req.body;
+
+    const conflictQuery = {
+      day: classData.day,
+      startTime: classData.startTime,
+      roomNumber: classData.roomNumber
+    };
+    
+    const isConflicted = await classSchedulesCollection.findOne(conflictQuery);
+    if (isConflicted) {
+      return res.status(400).send({ message: "Schedule Conflict: This room is busy at this time!" });
+    }
+
+    const result = await classSchedulesCollection.insertOne(classData);
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: "Failed to assign class" });
+  }
+});
+
+// get all assigned class
+app.get("/class-assign",verifyJWT, async (req, res) => {
+  const { semester, day } = req.query;
+  let query = {};
+  
+  if (teacherEmail) query.teacherEmail = teacherEmail;
+  if (semester) query.semester = semester;
+  if (day) query.day = day;
+
+  const result = await classSchedulesCollection.find(query).sort({ startTime: 1 }).toArray();
+  res.send(result);
+});
+
+// update class assignment (admin or teacher, with conflict check)
+app.patch("/class-assign/:id", verifyTeacherOrAdmin,verifyJWT,async (req, res) => {
+  try {
+    const id = req.params.id;
+    const update = req.body;
+    const filter = { _id: new ObjectId(id) };
+    
+    const result = await classSchedulesCollection.updateOne(filter, { $set: update });
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: "Update failed" });
+  }
+});
+
+
+app.get("/my-assigned-classes", verifyJWT, async (req, res) => {
+  try {
+    const teacherEmail = req.decoded.email; 
+    const { day, semester } = req.query;
+
+    let query = { teacherEmail: teacherEmail };
+
+    if (day) query.day = day;
+    if (semester) query.semester = semester;
+
+    const result = await classSchedulesCollection
+      .find(query)
+      .sort({ day: 1, startTime: 1 })
+      .toArray();
+
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: "Failed to load assigned classes", error: err.message });
+  }
+});
+
+
+// delete class assignment (admin or teacher)
+app.delete("/class-assign/:id", verifyJWT,verifyTeacherOrAdmin,async (req, res) => {
+  try {
+    const id = req.params.id;
+    const result = await classSchedulesCollection.deleteOne({ _id: new ObjectId(id) });
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: "Delete failed" });
+  }
+});
+
+
+
 
 
     await client.connect();
