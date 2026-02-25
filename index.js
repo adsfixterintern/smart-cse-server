@@ -13,29 +13,55 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 const port = process.env.PORT || 3000;
 
+// const allowedOrigins = [
+//   "http://localhost:3000",
+//   "https://smart-cse-seven.vercel.app"
+// ];
+
+// app.use(
+//   cors({
+//     origin: function (origin, callback) {
+//       if (!origin) return callback(null, true);
+
+//       if (allowedOrigins.indexOf(origin) === -1) {
+//         return callback(new Error("Not allowed by CORS"));
+//       }
+
+//       return callback(null, true);
+//     },
+//     credentials: true,
+//     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+//     allowedHeaders: ["Content-Type", "Authorization"],
+//   })
+// );
+
+
 const allowedOrigins = [
-  "http://localhost:3000",
-  "https://smart-cse-seven.vercel.app"
+  "https://smart-cse-three.vercel.app",          // frontend (main)
+  "https://smart-cse-server-eta.vercel.app"      // optional (same-origin / testing)
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
+      // allow server-to-server / Postman / curl
       if (!origin) return callback(null, true);
 
-      if (allowedOrigins.indexOf(origin) === -1) {
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
         return callback(new Error("Not allowed by CORS"));
       }
-
-      return callback(null, true);
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT","DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
+// // IMPORTANT: preflight handle
 // app.options("*", cors());
+// // app.options("*", cors());
 
 
 app.use(express.json());
@@ -680,7 +706,7 @@ async function run() {
       try {
         const { studentId } = req.params;
         const { courseCode } = req.query;
-        চায়;
+
 
         let query = { "students.id": studentId };
         if (courseCode) query.courseCode = courseCode;
@@ -1397,9 +1423,7 @@ app.post("/attendance/upsert",  async (req, res) => {
       console.log(`Server running on port ${port}`);
     });
 
-    app.listen(port, () => {
-      console.log(`Server running on port ${port}`);
-    });
+
 
   } catch (err) {
     console.error(err);
