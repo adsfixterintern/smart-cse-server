@@ -35,10 +35,10 @@ const port = process.env.PORT || 3000;
 //   })
 // );
 
-
 const allowedOrigins = [
-  "https://smart-cse-three.vercel.app",          // frontend (main)
-  "https://smart-cse-server-eta.vercel.app"      // optional (same-origin / testing)
+  "http://localhost:3000", // local development
+  "https://smart-cse-three.vercel.app", // frontend (main)
+  "https://smart-cse-server-eta.vercel.app", // optional (same-origin / testing)
 ];
 
 app.use(
@@ -56,13 +56,12 @@ app.use(
     credentials: true,
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  }),
 );
 
 // // IMPORTANT: preflight handle
 // app.options("*", cors());
 // // app.options("*", cors());
-
 
 app.use(express.json());
 
@@ -257,6 +256,14 @@ async function run() {
       const users = await usersCollection.find().toArray();
       res.send(users);
     });
+    app.get("/users/status/:email", verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      const user = await usersCollection.findOne({ email });
+      if (!user) {
+        return res.status(404).send({ message: "User not found" });
+      }
+      res.send({ user });
+    });
 
     // post new user (registration)
 
@@ -338,7 +345,26 @@ async function run() {
 
       res.send(user);
     });
-
+    // pending get for admin dashboard
+    app.get("/users/pending", verifyJWT, verifyAdmin, async (req, res) => {
+      const pendingUsers = await usersCollection
+        .find({ status: "pending" })
+        .toArray();
+      res.send(pendingUsers);
+    });
+    app.patch(
+      "/users/pending/:id",
+      verifyJWT,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const result = await usersCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { status: "approved" } },
+        );
+        res.send(result);
+      },
+    );
     app.get("/admin-stats", verifyJWT, verifyAdmin, async (req, res) => {
       try {
         const totalStudents = await usersCollection.countDocuments({
@@ -371,7 +397,7 @@ async function run() {
     });
 
     // student dashboard stats route
-   app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
+    app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
       try {
         const email = req.decoded.email;
         const user = await usersCollection.findOne({ email });
@@ -601,13 +627,18 @@ async function run() {
     });
 
     // delete routine (admin only)
-    app.delete("/routines/:id", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
-      const id = req.params.id;
-      const result = await routinesCollection.deleteOne({
-        _id: new ObjectId(id),
-      });
-      res.send(result);
-    });
+    app.delete(
+      "/routines/:id",
+      verifyJWT,
+      verifyTeacherOrAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const result = await routinesCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res.send(result);
+      },
+    );
 
     // update routine (admin or teacher)
     app.patch(
@@ -656,21 +687,24 @@ async function run() {
 
     // Get monthly attendance
     app.get("/attendance/monthly", verifyJWT, async (req, res) => {
-  const { semester, batch, month, course } = req.query;
-  const year = new Date().getFullYear();
-  
-  const formattedMonth = month.padStart(2, "0");
-  const datePattern = new RegExp(`^${year}-${formattedMonth}-`);
-  const query = {
-    semester,
-    batch,
-    course,
-    date: { $regex: datePattern }
-  };
+      const { semester, batch, month, course } = req.query;
+      const year = new Date().getFullYear();
 
-  const result = await attendanceCollection.find(query).sort({ date: 1 }).toArray();
-  res.send(result);
-});
+      const formattedMonth = month.padStart(2, "0");
+      const datePattern = new RegExp(`^${year}-${formattedMonth}-`);
+      const query = {
+        semester,
+        batch,
+        course,
+        date: { $regex: datePattern },
+      };
+
+      const result = await attendanceCollection
+        .find(query)
+        .sort({ date: 1 })
+        .toArray();
+      res.send(result);
+    });
     // post attendance (teacher or admin)
     app.post(
       "/attendance",
@@ -693,7 +727,6 @@ async function run() {
       try {
         const { studentId } = req.params;
         const { courseCode } = req.query;
-
 
         let query = { "students.id": studentId };
         if (courseCode) query.courseCode = courseCode;
@@ -755,35 +788,39 @@ async function run() {
       }
     });
 
-
     app.get("/attendance/check", verifyJWT, async (req, res) => {
-  const { semester, batch, course, date } = req.query;
-  const query = { semester, batch, course, date };
-  const result = await attendanceCollection.findOne(query);
-  res.send(result); 
-});
+      const { semester, batch, course, date } = req.query;
+      const query = { semester, batch, course, date };
+      const result = await attendanceCollection.findOne(query);
+      res.send(result);
+    });
 
+    app.post(
+      "/attendance/upsert",
+      verifyJWT,
+      verifyTeacherOrAdmin,
+      async (req, res) => {
+        const data = req.body;
+        const { semester, batch, course, date } = data;
 
-app.post("/attendance/upsert", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
-  const data = req.body;
-  const { semester, batch, course, date } = data;
+        const filter = { semester, batch, course, date };
+        const updateDoc = {
+          $set: {
+            teacher: data.teacher,
+            attendance: data.attendance,
+            updatedAt: new Date(),
+          },
+        };
 
-  const filter = { semester, batch, course, date };
-  const updateDoc = {
-    $set: {
-      teacher: data.teacher,
-      attendance: data.attendance,
-      updatedAt: new Date()
-    }
-  };
-
-  const options = { upsert: true }; 
-  const result = await attendanceCollection.updateOne(filter, updateDoc, options);
-  res.send(result);
-});
-
-
-    
+        const options = { upsert: true };
+        const result = await attendanceCollection.updateOne(
+          filter,
+          updateDoc,
+          options,
+        );
+        res.send(result);
+      },
+    );
 
     // settings routes
     // get settings (public route, returns default values if not set)
@@ -832,11 +869,6 @@ app.post("/attendance/upsert", verifyJWT, verifyTeacherOrAdmin, async (req, res)
       }
     });
 
-
-
-
-
-
     // feedback routes-------------------
     // get feedback with course details
     app.get("/feedback", verifyJWT, async (req, res) => {
@@ -873,7 +905,7 @@ app.post("/attendance/upsert", verifyJWT, verifyTeacherOrAdmin, async (req, res)
     // post feedback
 
     app.post("/feedback", verifyJWT, async (req, res) => {
-      const { courseId, comment, rating,courseName } = req.body;
+      const { courseId, comment, rating, courseName } = req.body;
       const feedback = {
         courseId,
         comment,
@@ -934,10 +966,6 @@ app.post("/attendance/upsert", verifyJWT, verifyTeacherOrAdmin, async (req, res)
         res.status(500).send({ message: "Update failed" });
       }
     });
-
-
-
-
 
     // faculties routes
     app.get("/faculties", async (req, res) => {
@@ -1003,14 +1031,19 @@ app.post("/attendance/upsert", verifyJWT, verifyTeacherOrAdmin, async (req, res)
     // results routes
 
     // get all results (admin only)
-    app.get("/results/all", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
-      try {
-        const results = await resultsCollection.find().toArray();
-        res.send(results);
-      } catch (error) {
-        res.status(500).send({ message: "Failed to fetch results" });
-      }
-    });
+    app.get(
+      "/results/all",
+      verifyJWT,
+      verifyTeacherOrAdmin,
+      async (req, res) => {
+        try {
+          const results = await resultsCollection.find().toArray();
+          res.send(results);
+        } catch (error) {
+          res.status(500).send({ message: "Failed to fetch results" });
+        }
+      },
+    );
 
     // post result (admin only, calculates grade and point based on marks)
     app.post("/results", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
@@ -1267,7 +1300,6 @@ app.post("/attendance/upsert", verifyJWT, verifyTeacherOrAdmin, async (req, res)
       }
     });
 
-
     app.get(
       "/student-overview",
       verifyJWT,
@@ -1395,13 +1427,9 @@ app.post("/attendance/upsert", verifyJWT, verifyTeacherOrAdmin, async (req, res)
     app.listen(port, () => {
       console.log(`Server running on port ${port}`);
     });
-
-
-
   } catch (err) {
     console.error(err);
   }
 }
-
 
 run();
