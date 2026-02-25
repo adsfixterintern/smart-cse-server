@@ -7,6 +7,8 @@ const multer = require("multer");
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
+const nodemailer = require("nodemailer");
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
@@ -36,7 +38,8 @@ const port = process.env.PORT || 3000;
 // );
 
 const allowedOrigins = [
-  "http://localhost:3000", // frontend (main)
+  "http://localhost:3000", // local development
+  "https://smart-cse-three.vercel.app", // frontend (main)
   "https://smart-cse-server-eta.vercel.app", // optional (same-origin / testing)
 ];
 
@@ -251,12 +254,92 @@ async function run() {
         res.status(500).send({ message: "Server error" });
       }
     });
+    // forget password and reset password routes
+    app.post("/forget-password", async (req, res) => {
+      const { email } = req.body;
+      try {
+        const user = await usersCollection.findOne({ email });
+        if (!user) {
+          return res
+            .status(404)
+            .send({ message: "User not found with this email!" });
+        }
 
+        // টোকেন তৈরি (১ ঘণ্টা মেয়াদী)
+        const resetToken = crypto.randomBytes(32).toString("hex");
+        const resetTokenExpiry = Date.now() + 3600000;
+
+        await usersCollection.updateOne(
+          { email },
+          { $set: { resetToken, resetTokenExpiry } },
+        );
+
+        // রিসেট লিংক (আপনার ফ্রন্টএন্ড ইউআরএল অনুযায়ী)
+        const resetLink = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password?token=${resetToken}&email=${email}`;
+
+        const transporter = nodemailer.createTransport({
+          service: "gmail",
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+          },
+        });
+
+        await transporter.sendMail({
+          from: `"SmartCSE Support" <${process.env.EMAIL_USER}>`,
+          to: email,
+          subject: "Password Reset Request",
+          html: `<p>Click <a href="${resetLink}">here</a> to reset your password. Valid for 1 hour.</p>`,
+        });
+
+        res.send({ message: "Reset link sent to your email!" });
+      } catch (error) {
+        res.status(500).send({ message: "Failed to process request" });
+      }
+    });
+
+    app.patch("/reset-password", async (req, res) => {
+      const { email, token, newPassword } = req.body;
+      try {
+        const user = await usersCollection.findOne({
+          email,
+          resetToken: token,
+          resetTokenExpiry: { $gt: Date.now() },
+        });
+
+        if (!user) {
+          return res.status(400).send({ message: "Invalid or expired token" });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        await usersCollection.updateOne(
+          { email },
+          {
+            $set: { password: hashedPassword },
+            $unset: { resetToken: "", resetTokenExpiry: "" },
+          },
+        );
+
+        res.send({ message: "Password updated successfully!" });
+      } catch (error) {
+        res.status(500).send({ message: "Reset failed" });
+      }
+    });
     // get all users (admin only)
     // verifyJWT, verifyTeacherOrAdmin,
     app.get("/users", async (req, res) => {
       const users = await usersCollection.find().toArray();
       res.send(users);
+    });
+    app.get("/users/status/:email", verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      const user = await usersCollection.findOne({ email });
+      if (!user) {
+        return res.status(404).send({ message: "User not found" });
+      }
+      res.send({ user });
     });
 
     // post new user (registration)
@@ -326,10 +409,10 @@ async function run() {
 
     // get user by email (for profile page)
     // verifyJWT,
-    app.get("/users/email/:email", verifyJWT, async (req, res) => {
+    app.get("/users/email/:email",verifyJWT,  async (req, res) => {
       const email = req.params.email;
 
-      if (req.decoded.email !== email) {
+      if (req.decoded?.email !== email) {
         return res.status(403).send({ message: "Forbidden Access" });
       }
 
@@ -341,8 +424,27 @@ async function run() {
 
       res.send(user);
     });
-    // verifyJWT, verifyAdmin,
-    app.get("/admin-stats", async (req, res) => {
+    // pending get for admin dashboard
+    app.get("/users/pending", verifyJWT, verifyAdmin, async (req, res) => {
+      const pendingUsers = await usersCollection
+        .find({ status: "pending" })
+        .toArray();
+      res.send(pendingUsers);
+    });
+    app.patch(
+      "/users/pending/:id",
+      verifyJWT,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const result = await usersCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { status: "approved" } },
+        );
+        res.send(result);
+      },
+    );
+    app.get("/admin-stats", verifyJWT, verifyAdmin, async (req, res) => {
       try {
         const totalStudents = await usersCollection.countDocuments({
           role: "student",
@@ -556,7 +658,7 @@ async function run() {
 
     // get courses assigned to logged in teacher
     // verifyJWT,
-    app.get("/teacher-courses", async (req, res) => {
+    app.get("/teacher-courses",verifyJWT,verifyTeacherOrAdmin,  async (req, res) => {
       try {
         const email = req.decoded.email;
         const query = { teacherEmail: email };
@@ -603,11 +705,30 @@ async function run() {
 
     // create new routine (admin only)
     // verifyJWT, verifyAdmin,
-    app.post("/routines", async (req, res) => {
-      const routine = req.body;
-      const result = await routinesCollection.insertOne(routine);
-      res.send(result);
+   // create new routine (admin only)
+app.post("/routines", async (req, res) => {
+  try {
+    const routine = req.body;
+
+    const existingConflict = await routinesCollection.findOne({
+      day: routine.day,
+      startTime: routine.startTime,
+      room: routine.room
     });
+
+    if (existingConflict) {
+      return res.status(400).send({ 
+        message: `Conflict: This room (${routine.room}) is already busy at ${routine.startTime} on ${routine.day}` 
+      });
+    }
+
+    // কোনো কনফ্লিক্ট না থাকলে নতুন রুটিন অ্যাড হবে
+    const result = await routinesCollection.insertOne(routine);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Server Error", error });
+  }
+});
 
     // delete routine (admin only)
     // verifyJWT, verifyTeacherOrAdmin,
@@ -782,32 +903,40 @@ async function run() {
       const result = await attendanceCollection.findOne(query);
       res.send(result || {});
     });
-    // verifyJWT, verifyTeacherOrAdmin,
-    app.post("/attendance/upsert", async (req, res) => {
-      try {
-        const data = req.body;
-        const { semester, course, date } = data;
+// verifyJWT, verifyTeacherOrAdmin,
+app.post("/attendance/upsert", async (req, res) => {
+  try {
+    const data = req.body;
+    const { semester, course, date, attendance, teacher } = data;
 
-        const filter = { semester, course, date };
-        const updateDoc = {
-          $set: {
-            teacher: data.teacher,
-            attendance: data.attendance,
-            updatedAt: new Date(),
-          },
-        };
+    // ১. ফিল্টার তৈরি (একই দিনে, একই সেমিস্টার এবং একই কোর্সের জন্য একটিই রেকর্ড)
+    const filter = { semester, course, date };
 
-        const options = { upsert: true };
-        const result = await attendanceCollection.updateOne(
-          filter,
-          updateDoc,
-          options,
-        );
-        res.send(result);
-      } catch (err) {
-        res.status(500).send({ message: "Upsert failed", error: err.message });
+    // ২. আপডেট লজিক
+    const updateDoc = {
+      $set: {
+        teacher: teacher,
+        attendance: attendance,
+        updatedAt: new Date()
       }
-    });
+    };
+
+
+    const options = { upsert: true };
+
+    const result = await attendanceCollection.updateOne(filter, updateDoc, options);
+
+  
+    if (result.upsertedCount > 0) {
+      res.status(201).send({ message: "Attendance added successfully", type: "inserted", result });
+    } else {
+      res.status(200).send({ message: "Attendance updated successfully", type: "updated", result });
+    }
+  } catch (err) {
+    res.status(500).send({ message: "Failed to sync attendance", error: err.message });
+  }
+});
+    
 
     // settings routes
     // get settings (public route, returns default values if not set)
@@ -831,7 +960,7 @@ async function run() {
 
     // update settings (admin only)
     // verifyJWT, verifyAdmin,
-    app.patch("/settings", async (req, res) => {
+    app.patch("/settings", verifyJWT,verifyAdmin, async (req, res) => {
       try {
         const updatedData = req.body;
         const { _id, ...dataWithoutId } = updatedData;
@@ -859,8 +988,8 @@ async function run() {
 
     // feedback routes-------------------
     // get feedback with course details
-    // verifyJWT,
-    app.get("/feedback", async (req, res) => {
+    // verifyJWT, 
+    app.get("/feedback", verifyJWT, async (req, res) => {
       try {
         const result = await feedbackCollection
           .aggregate([
@@ -892,9 +1021,9 @@ async function run() {
     });
 
     // post feedback
-    // verifyJWT,
-    app.post("/feedback", async (req, res) => {
-      const { courseId, comment, rating, courseName } = req.body;
+// verifyJWT,
+    app.post("/feedback", verifyJWT, async (req, res) => {
+      const { courseId, comment, rating,courseName } = req.body;
       const feedback = {
         courseId,
         comment,
@@ -908,8 +1037,8 @@ async function run() {
     });
 
     // delete feedback
-    // verifyJWT, verifyAdmin,
-    app.delete("/feedback/:id", async (req, res) => {
+// verifyJWT, verifyAdmin,
+    app.delete("/feedback/:id",verifyJWT,verifyAdmin,  async (req, res) => {
       try {
         const id = req.params.id;
         const result = await feedbackCollection.deleteOne({
@@ -927,8 +1056,8 @@ async function run() {
     });
 
     // update feedback (only comment and rating, courseId is immutable)
-    //  verifyJWT,
-    app.patch("/feedback/:id", async (req, res) => {
+//  verifyJWT,
+    app.patch("/feedback/:id",verifyJWT, async (req, res) => {
       try {
         const id = req.params.id;
         const { courseCode, ...updatedData } = req.body;
@@ -957,7 +1086,7 @@ async function run() {
     });
 
     // faculties routes
-    app.get("/faculties", async (req, res) => {
+    app.get("/faculties", verifyJWT, async (req, res) => {
       try {
         const result = await facultiesCollection
           .find()
@@ -971,7 +1100,7 @@ async function run() {
 
     // add new faculty (admin only)
     // verifyJWT, verifyAdmin,
-    app.post("/faculties", async (req, res) => {
+    app.post("/faculties", verifyJWT,verifyAdmin, async (req, res) => {
       try {
         const faculty = {
           ...req.body,
@@ -985,8 +1114,8 @@ async function run() {
     });
 
     // update faculty (admin only, _id is immutable)
-    // verifyJWT, verifyAdmin,
-    app.patch("/faculties/:id", async (req, res) => {
+    // verifyJWT, verifyAdmin, 
+    app.patch("/faculties/:id",verifyJWT,verifyAdmin, async (req, res) => {
       try {
         const id = req.params.id;
         const { _id, ...dataToUpdate } = req.body;
@@ -1007,8 +1136,8 @@ async function run() {
     });
 
     // delete faculty (admin only)
-    // verifyJWT, verifyAdmin,
-    app.delete("/faculties/:id", async (req, res) => {
+    // verifyJWT, verifyAdmin, 
+    app.delete("/faculties/:id",verifyJWT,verifyAdmin, async (req, res) => {
       try {
         const id = req.params.id;
         const result = await facultiesCollection.deleteOne({
@@ -1024,7 +1153,7 @@ async function run() {
 
     // get all results (admin only)
     // verifyJWT, verifyTeacherOrAdmin,
-    app.get("/results/all", async (req, res) => {
+    app.get("/results/all", verifyJWT,verifyTeacherOrAdmin, async (req, res) => {
       try {
         const results = await resultsCollection.find().toArray();
         res.send(results);
@@ -1035,7 +1164,7 @@ async function run() {
 
     // post result (admin only, calculates grade and point based on marks)
     // verifyJWT, verifyTeacherOrAdmin,
-    app.post("/results", async (req, res) => {
+    app.post("/results", verifyJWT,verifyTeacherOrAdmin, async (req, res) => {
       try {
         const {
           studentEmail,
@@ -1091,7 +1220,7 @@ async function run() {
 
     // get results for logged in student, with optional semester filter
     // verifyJWT,
-    app.get("/my-results", async (req, res) => {
+    app.get("/my-results",verifyJWT, async (req, res) => {
       try {
         const email = req.decoded.email;
         const query = { studentEmail: email };
@@ -1182,7 +1311,7 @@ async function run() {
 
     // get transcript for logged in student, with CGPA calculation and total courses count
     // verifyJWT,
-    app.get("/my-transcript", async (req, res) => {
+    app.get("/my-transcript",verifyJWT, async (req, res) => {
       try {
         const email = req.decoded.email;
         const results = await resultsCollection
@@ -1207,7 +1336,7 @@ async function run() {
 
     // get all notices, sorted by creation date
     // verifyJWT,
-    app.get("/notices", async (req, res) => {
+    app.get("/notices", verifyJWT, async (req, res) => {
       try {
         const result = await noticesCollection
           .find()
@@ -1221,7 +1350,7 @@ async function run() {
 
     // post new notice (admin only)
     // verifyJWT, verifyAdmin,
-    app.post("/notices", async (req, res) => {
+    app.post("/notices", verifyJWT,verifyAdmin, async (req, res) => {
       try {
         const { title, description, category, priority, imageUrl, publicId } =
           req.body;
@@ -1247,7 +1376,7 @@ async function run() {
     //update notice (admin only, _id is immutable, if priority is updated, it will affect
     // the order of notices)
     // verifyJWT, verifyAdmin,
-    app.patch("/notices/:id", async (req, res) => {
+    app.patch("/notices/:id", verifyJWT,verifyAdmin, async (req, res) => {
       try {
         const id = req.params.id;
         const updatedData = req.body;
@@ -1270,7 +1399,7 @@ async function run() {
 
     // delete notice (admin only)
     // verifyJWT, verifyAdmin,
-    app.delete("/notices/:id", async (req, res) => {
+    app.delete("/notices/:id", verifyJWT,verifyAdmin, async (req, res) => {
       try {
         const id = req.params.id;
 
