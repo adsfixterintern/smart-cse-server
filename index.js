@@ -35,10 +35,10 @@ const port = process.env.PORT || 3000;
 //   })
 // );
 
-
 const allowedOrigins = [
-  "http://localhost:3000",          // frontend (main)
-  "https://smart-cse-server-eta.vercel.app"      // optional (same-origin / testing)
+  "http://localhost:3000", // local development
+  "https://smart-cse-three.vercel.app", // frontend (main)
+  "https://smart-cse-server-eta.vercel.app", // optional (same-origin / testing)
 ];
 
 app.use(
@@ -56,13 +56,12 @@ app.use(
     credentials: true,
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  }),
 );
 
 // // IMPORTANT: preflight handle
 // app.options("*", cors());
 // // app.options("*", cors());
-
 
 app.use(express.json());
 
@@ -260,6 +259,14 @@ async function run() {
       const users = await usersCollection.find().toArray();
       res.send(users);
     });
+    app.get("/users/status/:email", verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      const user = await usersCollection.findOne({ email });
+      if (!user) {
+        return res.status(404).send({ message: "User not found" });
+      }
+      res.send({ user });
+    });
 
     // post new user (registration)
 
@@ -343,8 +350,27 @@ async function run() {
 
       res.send(user);
     });
-// verifyJWT, verifyAdmin,
-    app.get("/admin-stats",  async (req, res) => {
+    // pending get for admin dashboard
+    app.get("/users/pending", verifyJWT, verifyAdmin, async (req, res) => {
+      const pendingUsers = await usersCollection
+        .find({ status: "pending" })
+        .toArray();
+      res.send(pendingUsers);
+    });
+    app.patch(
+      "/users/pending/:id",
+      verifyJWT,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const result = await usersCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { status: "approved" } },
+        );
+        res.send(result);
+      },
+    );
+    app.get("/admin-stats", verifyJWT, verifyAdmin, async (req, res) => {
       try {
         const totalStudents = await usersCollection.countDocuments({
           role: "student",
@@ -805,7 +831,15 @@ app.post("/attendance/upsert", async (req, res) => {
       }
     });
 
-    
+        const options = { upsert: true };
+        const result = await attendanceCollection.updateOne(
+          filter,
+          updateDoc,
+          options,
+        );
+        res.send(result);
+      },
+    );
 
     // settings routes
     // get settings (public route, returns default values if not set)
@@ -854,11 +888,6 @@ app.post("/attendance/upsert", async (req, res) => {
           .send({ message: "Update failed due to database constraints" });
       }
     });
-
-
-
-
-
 
     // feedback routes-------------------
     // get feedback with course details
@@ -958,10 +987,6 @@ app.post("/attendance/upsert", async (req, res) => {
         res.status(500).send({ message: "Update failed" });
       }
     });
-
-
-
-
 
     // faculties routes
     app.get("/faculties", async (req, res) => {
@@ -1303,7 +1328,6 @@ app.post("/attendance/upsert", async (req, res) => {
       }
     });
 
-
     app.get(
       "/student-overview",
       verifyJWT,
@@ -1562,13 +1586,9 @@ app.delete("/class-assign/:id", verifyJWT,verifyTeacherOrAdmin,async (req, res) 
     app.listen(port, () => {
       console.log(`Server running on port ${port}`);
     });
-
-
-
   } catch (err) {
     console.error(err);
   }
 }
-
 
 run();
