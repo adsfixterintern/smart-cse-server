@@ -37,7 +37,7 @@ const port = process.env.PORT || 3000;
 
 
 const allowedOrigins = [
-  "https://smart-cse-three.vercel.app",          // frontend (main)
+  "http://localhost:3000",          // frontend (main)
   "https://smart-cse-server-eta.vercel.app"      // optional (same-origin / testing)
 ];
 
@@ -137,6 +137,7 @@ async function run() {
     const facultiesCollection = db.collection("faculties");
     const resultsCollection = db.collection("results");
     const noticesCollection = db.collection("notices");
+    const classroomsCollection = db.collection("classrooms");
 
     // Admin verification middleware
     const verifyAdmin = async (req, res, next) => {
@@ -1409,6 +1410,48 @@ app.post("/attendance/upsert",  async (req, res) => {
         }
       },
     );
+
+
+
+
+
+    // classrooms routes
+
+    app.get("/classrooms", verifyJWT, async (req, res) => {
+  const result = await classroomsCollection.find().toArray();
+  res.send(result);
+});
+
+app.post("/classrooms", verifyJWT, verifyAdmin, async (req, res) => {
+  const room = req.body;
+  const existing = await classroomsCollection.findOne({ roomNo: room.roomNo });
+  if (existing) {
+    return res.status(409).send({ message: "Room already exists" });
+  }
+  const result = await classroomsCollection.insertOne(room);
+  res.send(result);
+});
+
+
+app.patch("/classrooms/:id", verifyJWT, verifyAdmin, async (req, res) => {
+  const id = req.params.id;
+  const updatedData = req.body;
+  delete updatedData._id;
+  const result = await classroomsCollection.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: updatedData }
+  );
+  res.send(result);
+});
+
+
+app.delete("/classrooms/:id", verifyJWT, verifyAdmin, async (req, res) => {
+  const id = req.params.id;
+  const result = await classroomsCollection.deleteOne({ _id: new ObjectId(id) });
+  res.send(result);
+});
+
+
     await client.connect();
     console.log("Connected to MongoDB");
 
