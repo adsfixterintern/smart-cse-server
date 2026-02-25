@@ -7,6 +7,8 @@ const multer = require("multer");
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
+const nodemailer = require("nodemailer");
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
@@ -252,7 +254,79 @@ async function run() {
         res.status(500).send({ message: "Server error" });
       }
     });
+    // forget password and reset password routes
+    app.post("/forget-password", async (req, res) => {
+      const { email } = req.body;
+      try {
+        const user = await usersCollection.findOne({ email });
+        if (!user) {
+          return res
+            .status(404)
+            .send({ message: "User not found with this email!" });
+        }
 
+        // টোকেন তৈরি (১ ঘণ্টা মেয়াদী)
+        const resetToken = crypto.randomBytes(32).toString("hex");
+        const resetTokenExpiry = Date.now() + 3600000;
+
+        await usersCollection.updateOne(
+          { email },
+          { $set: { resetToken, resetTokenExpiry } },
+        );
+
+        // রিসেট লিংক (আপনার ফ্রন্টএন্ড ইউআরএল অনুযায়ী)
+        const resetLink = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password?token=${resetToken}&email=${email}`;
+
+        const transporter = nodemailer.createTransport({
+          service: "gmail",
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+          },
+        });
+
+        await transporter.sendMail({
+          from: `"SmartCSE Support" <${process.env.EMAIL_USER}>`,
+          to: email,
+          subject: "Password Reset Request",
+          html: `<p>Click <a href="${resetLink}">here</a> to reset your password. Valid for 1 hour.</p>`,
+        });
+
+        res.send({ message: "Reset link sent to your email!" });
+      } catch (error) {
+        res.status(500).send({ message: "Failed to process request" });
+      }
+    });
+
+    app.patch("/reset-password", async (req, res) => {
+      const { email, token, newPassword } = req.body;
+      try {
+        const user = await usersCollection.findOne({
+          email,
+          resetToken: token,
+          resetTokenExpiry: { $gt: Date.now() },
+        });
+
+        if (!user) {
+          return res.status(400).send({ message: "Invalid or expired token" });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        await usersCollection.updateOne(
+          { email },
+          {
+            $set: { password: hashedPassword },
+            $unset: { resetToken: "", resetTokenExpiry: "" },
+          },
+        );
+
+        res.send({ message: "Password updated successfully!" });
+      } catch (error) {
+        res.status(500).send({ message: "Reset failed" });
+      }
+    });
     // get all users (admin only)
     // verifyJWT, verifyTeacherOrAdmin,
     app.get("/users",  async (req, res) => {
