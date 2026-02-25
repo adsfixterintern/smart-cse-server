@@ -584,7 +584,7 @@ async function run() {
 
     // get courses assigned to logged in teacher
     // verifyJWT,
-    app.get("/teacher-courses",  async (req, res) => {
+    app.get("/teacher-courses",verifyJWT,verifyTeacherOrAdmin,  async (req, res) => {
       try {
         const email = req.decoded.email;
         const query = { teacherEmail: email };
