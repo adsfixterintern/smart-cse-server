@@ -1604,20 +1604,59 @@ app.post("/class-assign",verifyJWT,verifyTeacherOrAdmin, async (req, res) => {
 });
 
 // get all assigned class
-app.get("/class-assign",verifyJWT, async (req, res) => {
-  const { semester, day } = req.query;
-  let query = {};
-  
-  if (teacherEmail) query.teacherEmail = teacherEmail;
-  if (semester) query.semester = semester;
-  if (day) query.day = day;
+// get all assigned class
+app.get("/class-assign", verifyJWT, async (req, res) => {
+  try {
+    const { teacherEmail, semester, day } = req.query;
+    let query = {};
 
-  const result = await classSchedulesCollection.find(query).sort({ startTime: 1 }).toArray();
-  res.send(result);
+    if (teacherEmail) query.teacherEmail = teacherEmail;
+    if (semester) query.semester = semester;
+    if (day) query.day = day;
+
+    const result = await classSchedulesCollection
+      .find(query)
+      .sort({ startTime: 1 })
+      .toArray();
+      
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: "Error fetching class assignments" });
+  }
+});
+
+// Get Today's Classes by Teacher Email (Server-side date detection)
+app.get("/teacher-today-classes", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
+  try {
+    const { teacherId } = req.query; 
+
+    if (!teacherId) {
+      return res.status(400).send({ message: "Teacher ID is required" });
+    }
+
+ 
+    const todayDate = new Date().toISOString().split('T')[0];
+
+    const query = { 
+      teacherId: teacherId, 
+      day: todayDate       
+    }
+    const result = await classSchedulesCollection
+      .find(query)
+      .sort({ startTime: 1 })
+      .toArray();
+
+    res.send({
+      date: todayDate,
+      classes: result
+    });
+  } catch (err) {
+    res.status(500).send({ message: "Internal server error", error: err.message });
+  }
 });
 
 // update class assignment (admin or teacher, with conflict check)
-app.patch("/class-assign/:id", verifyTeacherOrAdmin,verifyJWT,async (req, res) => {
+app.patch("/class-assign/:id", verifyJWT,verifyTeacherOrAdmin,async (req, res) => {
   try {
     const id = req.params.id;
     const update = req.body;
