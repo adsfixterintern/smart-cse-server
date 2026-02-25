@@ -884,7 +884,7 @@ app.post("/attendance/upsert", async (req, res) => {
 
     // update settings (admin only)
     // verifyJWT, verifyAdmin,
-    app.patch("/settings",  async (req, res) => {
+    app.patch("/settings", verifyJWT,verifyAdmin, async (req, res) => {
       try {
         const updatedData = req.body;
         const { _id, ...dataWithoutId } = updatedData;
@@ -913,7 +913,7 @@ app.post("/attendance/upsert", async (req, res) => {
     // feedback routes-------------------
     // get feedback with course details
     // verifyJWT, 
-    app.get("/feedback", async (req, res) => {
+    app.get("/feedback", verifyJWT, async (req, res) => {
       try {
         const result = await feedbackCollection
           .aggregate([
@@ -946,7 +946,7 @@ app.post("/attendance/upsert", async (req, res) => {
 
     // post feedback
 // verifyJWT,
-    app.post("/feedback",  async (req, res) => {
+    app.post("/feedback", verifyJWT, async (req, res) => {
       const { courseId, comment, rating,courseName } = req.body;
       const feedback = {
         courseId,
@@ -962,7 +962,7 @@ app.post("/attendance/upsert", async (req, res) => {
 
     // delete feedback
 // verifyJWT, verifyAdmin,
-    app.delete("/feedback/:id",  async (req, res) => {
+    app.delete("/feedback/:id",verifyJWT,verifyAdmin,  async (req, res) => {
       try {
         const id = req.params.id;
         const result = await feedbackCollection.deleteOne({
@@ -981,7 +981,7 @@ app.post("/attendance/upsert", async (req, res) => {
 
     // update feedback (only comment and rating, courseId is immutable)
 //  verifyJWT,
-    app.patch("/feedback/:id", async (req, res) => {
+    app.patch("/feedback/:id",verifyJWT, async (req, res) => {
       try {
         const id = req.params.id;
         const { courseCode, ...updatedData } = req.body;
@@ -1010,7 +1010,7 @@ app.post("/attendance/upsert", async (req, res) => {
     });
 
     // faculties routes
-    app.get("/faculties", async (req, res) => {
+    app.get("/faculties", verifyJWT, async (req, res) => {
       try {
         const result = await facultiesCollection
           .find()
@@ -1024,7 +1024,7 @@ app.post("/attendance/upsert", async (req, res) => {
 
     // add new faculty (admin only)
     // verifyJWT, verifyAdmin,
-    app.post("/faculties",  async (req, res) => {
+    app.post("/faculties", verifyJWT,verifyAdmin, async (req, res) => {
       try {
         const faculty = {
           ...req.body,
@@ -1039,7 +1039,7 @@ app.post("/attendance/upsert", async (req, res) => {
 
     // update faculty (admin only, _id is immutable)
     // verifyJWT, verifyAdmin, 
-    app.patch("/faculties/:id", async (req, res) => {
+    app.patch("/faculties/:id",verifyJWT,verifyAdmin, async (req, res) => {
       try {
         const id = req.params.id;
         const { _id, ...dataToUpdate } = req.body;
@@ -1061,7 +1061,7 @@ app.post("/attendance/upsert", async (req, res) => {
 
     // delete faculty (admin only)
     // verifyJWT, verifyAdmin, 
-    app.delete("/faculties/:id", async (req, res) => {
+    app.delete("/faculties/:id",verifyJWT,verifyAdmin, async (req, res) => {
       try {
         const id = req.params.id;
         const result = await facultiesCollection.deleteOne({
@@ -1077,7 +1077,7 @@ app.post("/attendance/upsert", async (req, res) => {
 
     // get all results (admin only)
     // verifyJWT, verifyTeacherOrAdmin,
-    app.get("/results/all",  async (req, res) => {
+    app.get("/results/all", verifyJWT,verifyTeacherOrAdmin, async (req, res) => {
       try {
         const results = await resultsCollection.find().toArray();
         res.send(results);
@@ -1088,7 +1088,7 @@ app.post("/attendance/upsert", async (req, res) => {
 
     // post result (admin only, calculates grade and point based on marks)
     // verifyJWT, verifyTeacherOrAdmin,
-    app.post("/results",  async (req, res) => {
+    app.post("/results", verifyJWT,verifyTeacherOrAdmin, async (req, res) => {
       try {
         const {
           studentEmail,
@@ -1144,7 +1144,7 @@ app.post("/attendance/upsert", async (req, res) => {
 
     // get results for logged in student, with optional semester filter
     // verifyJWT,
-    app.get("/my-results",  async (req, res) => {
+    app.get("/my-results",verifyJWT, async (req, res) => {
       try {
         const email = req.decoded.email;
         const query = { studentEmail: email };
@@ -1235,7 +1235,7 @@ app.post("/attendance/upsert", async (req, res) => {
 
     // get transcript for logged in student, with CGPA calculation and total courses count
     // verifyJWT,
-    app.get("/my-transcript",  async (req, res) => {
+    app.get("/my-transcript",verifyJWT, async (req, res) => {
       try {
         const email = req.decoded.email;
         const results = await resultsCollection
@@ -1260,7 +1260,7 @@ app.post("/attendance/upsert", async (req, res) => {
 
     // get all notices, sorted by creation date
     // verifyJWT,
-    app.get("/notices",  async (req, res) => {
+    app.get("/notices", verifyJWT, async (req, res) => {
       try {
         const result = await noticesCollection
           .find()
@@ -1274,7 +1274,7 @@ app.post("/attendance/upsert", async (req, res) => {
 
     // post new notice (admin only)
     // verifyJWT, verifyAdmin,
-    app.post("/notices",  async (req, res) => {
+    app.post("/notices", verifyJWT,verifyAdmin, async (req, res) => {
       try {
         const { title, description, category, priority, imageUrl, publicId } =
           req.body;
@@ -1300,7 +1300,7 @@ app.post("/attendance/upsert", async (req, res) => {
     //update notice (admin only, _id is immutable, if priority is updated, it will affect 
     // the order of notices)
     // verifyJWT, verifyAdmin,
-    app.patch("/notices/:id",  async (req, res) => {
+    app.patch("/notices/:id", verifyJWT,verifyAdmin, async (req, res) => {
       try {
         const id = req.params.id;
         const updatedData = req.body;
@@ -1323,7 +1323,7 @@ app.post("/attendance/upsert", async (req, res) => {
 
     // delete notice (admin only)
     // verifyJWT, verifyAdmin,
-    app.delete("/notices/:id",  async (req, res) => {
+    app.delete("/notices/:id", verifyJWT,verifyAdmin, async (req, res) => {
       try {
         const id = req.params.id;
 
@@ -1507,7 +1507,7 @@ app.delete("/classrooms/:id", verifyJWT, verifyAdmin, async (req, res) => {
 
 
 // class assignment route with conflict check
-app.post("/class-assign",verifyTeacherOrAdmin,verifyJWT, async (req, res) => {
+app.post("/class-assign",verifyJWT,verifyTeacherOrAdmin, async (req, res) => {
   try {
     const classData = req.body;
 
@@ -1557,7 +1557,7 @@ app.patch("/class-assign/:id", verifyTeacherOrAdmin,verifyJWT,async (req, res) =
 });
 
 
-app.get("/my-assigned-classes", verifyJWT, async (req, res) => {
+app.get("/my-assigned-classes", verifyJWT,verifyTeacherOrAdmin, async (req, res) => {
   try {
     const teacherEmail = req.decoded.email; 
     const { day, semester } = req.query;
