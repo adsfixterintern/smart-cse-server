@@ -136,6 +136,8 @@ async function run() {
     const facultiesCollection = db.collection("faculties");
     const resultsCollection = db.collection("results");
     const noticesCollection = db.collection("notices");
+    const classroomsCollection = db.collection("classrooms");
+    const classSchedulesCollection = db.collection("classSchedules");
 
     // Admin verification middleware
     const verifyAdmin = async (req, res, next) => {
@@ -168,7 +170,7 @@ async function run() {
     // clodinary upload route
     app.post(
       "/upload-image",
-      verifyJWT,
+      // verifyJWT,
       upload.single("image"),
       async (req, res) => {
         try {
@@ -252,7 +254,8 @@ async function run() {
     });
 
     // get all users (admin only)
-    app.get("/users", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
+    // verifyJWT, verifyTeacherOrAdmin,
+    app.get("/users",  async (req, res) => {
       const users = await usersCollection.find().toArray();
       res.send(users);
     });
@@ -300,7 +303,8 @@ async function run() {
     });
 
     // delete user (admin only)
-    app.delete("/users/:id", verifyJWT, verifyAdmin, async (req, res) => {
+    // verifyJWT, verifyAdmin,
+    app.delete("/users/:id",  async (req, res) => {
       const id = req.params.id;
       const result = await usersCollection.deleteOne({ _id: new ObjectId(id) });
       res.send(result);
@@ -330,7 +334,8 @@ async function run() {
     });
 
     // get user by email (for profile page)
-    app.get("/users/email/:email", verifyJWT, async (req, res) => {
+    // verifyJWT,
+    app.get("/users/email/:email",  async (req, res) => {
       const email = req.params.email;
 
       if (req.decoded.email !== email) {
@@ -397,7 +402,8 @@ async function run() {
     });
 
     // student dashboard stats route
-    app.get("/student/dashboard-overview", verifyJWT, async (req, res) => {
+    // verifyJWT,
+   app.get("/student/dashboard-overview",  async (req, res) => {
       try {
         const email = req.decoded.email;
         const user = await usersCollection.findOne({ email });
@@ -494,7 +500,8 @@ async function run() {
     // course related routes
 
     // get courses by semester (admin and teachers only)
-    app.get("/courses/:semester", verifyJWT, async (req, res) => {
+    // verifyJWT,
+    app.get("/courses/:semester",  async (req, res) => {
       try {
         const sem = req.params.semester;
         console.log(sem);
@@ -508,8 +515,8 @@ async function run() {
         res.status(500).send([]);
       }
     });
-
-    app.get("/courses", verifyJWT, async (req, res) => {
+// verifyJWT,
+    app.get("/courses",  async (req, res) => {
       const courseCode = req.query.code;
 
       let query = {};
@@ -519,8 +526,8 @@ async function run() {
       const courses = await coursesCollection.find(query).toArray();
       res.send(courses);
     });
-
-    app.post("/courses", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
+//  verifyJWT, verifyTeacherOrAdmin,
+    app.post("/courses", async (req, res) => {
       const course = req.body;
       const existingCourse = await coursesCollection.findOne({
         courseCode: course.code,
@@ -562,8 +569,8 @@ async function run() {
         res.send(result);
       },
     );
-
-    app.get("/courses/:code", verifyJWT, async (req, res) => {
+// verifyJWT,
+    app.get("/courses/:code",  async (req, res) => {
       const code = Number(req.params.code);
 
       const course = await coursesCollection.findOne({ code });
@@ -576,7 +583,8 @@ async function run() {
     });
 
     // get courses assigned to logged in teacher
-    app.get("/teacher-courses", verifyJWT, async (req, res) => {
+    // verifyJWT,
+    app.get("/teacher-courses",  async (req, res) => {
       try {
         const email = req.decoded.email;
         const query = { teacherEmail: email };
@@ -588,7 +596,8 @@ async function run() {
     });
 
     // get students by semester (admin and teachers only)
-    app.get("/students/:semester", verifyJWT, async (req, res) => {
+    // verifyJWT,
+    app.get("/students/:semester",  async (req, res) => {
       try {
         const semester = req.params.semester;
         const query = {
@@ -612,7 +621,8 @@ async function run() {
     // routines routes
 
     // get routines with optional semester filter
-    app.get("/routines", verifyJWT, async (req, res) => {
+    // verifyJWT,
+    app.get("/routines",  async (req, res) => {
       const semester = req.query.semester;
       const query = semester ? { semester } : {};
       const result = await routinesCollection.find(query).toArray();
@@ -620,25 +630,22 @@ async function run() {
     });
 
     // create new routine (admin only)
-    app.post("/routines", verifyJWT, verifyAdmin, async (req, res) => {
+    // verifyJWT, verifyAdmin,
+    app.post("/routines",  async (req, res) => {
       const routine = req.body;
       const result = await routinesCollection.insertOne(routine);
       res.send(result);
     });
 
     // delete routine (admin only)
-    app.delete(
-      "/routines/:id",
-      verifyJWT,
-      verifyTeacherOrAdmin,
-      async (req, res) => {
-        const id = req.params.id;
-        const result = await routinesCollection.deleteOne({
-          _id: new ObjectId(id),
-        });
-        res.send(result);
-      },
-    );
+    // verifyJWT, verifyTeacherOrAdmin,
+    app.delete("/routines/:id",  async (req, res) => {
+      const id = req.params.id;
+      const result = await routinesCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+      res.send(result);
+    });
 
     // update routine (admin or teacher)
     app.patch(
@@ -673,7 +680,8 @@ async function run() {
     // ÷ Attendance routes
 
     // get attendance with optional batch and date filters
-    app.get("/attendance", verifyJWT, async (req, res) => {
+    // verifyJWT,
+    app.get("/attendance",  async (req, res) => {
       const { semester, batch, date } = req.query;
 
       let query = {};
@@ -686,25 +694,29 @@ async function run() {
     });
 
     // Get monthly attendance
-    app.get("/attendance/monthly", verifyJWT, async (req, res) => {
-      const { semester, batch, month, course } = req.query;
-      const year = new Date().getFullYear();
+    // verifyJWT,
+ app.get("/attendance/monthly", async (req, res) => {
+      try {
+        const { semester, month, course } = req.query;
+        const year = new Date().getFullYear();
+        
+        const formattedMonth = month.padStart(2, "0");
+        const datePattern = new RegExp(`^${year}-${formattedMonth}-`);
+        
+        const query = {
+          semester,
+          course,
+          date: { $regex: datePattern }
+        };
 
-      const formattedMonth = month.padStart(2, "0");
-      const datePattern = new RegExp(`^${year}-${formattedMonth}-`);
-      const query = {
-        semester,
-        batch,
-        course,
-        date: { $regex: datePattern },
-      };
-
-      const result = await attendanceCollection
-        .find(query)
-        .sort({ date: 1 })
-        .toArray();
-      res.send(result);
+        const result = await attendanceCollection.find(query).sort({ date: 1 }).toArray();
+        res.send(result);
+      } catch (err) {
+        res.status(500).send({ message: "Failed to load monthly data" });
+      }
     });
+
+
     // post attendance (teacher or admin)
     app.post(
       "/attendance",
@@ -723,28 +735,29 @@ async function run() {
     );
 
     // get attendance for a specific student with optional course filter
-    app.get("/attendance/user/:studentId", verifyJWT, async (req, res) => {
+    // verifyJWT,
+    app.get("/attendance/user/:studentId", async (req, res) => {
       try {
         const { studentId } = req.params;
-        const { courseCode } = req.query;
-
-        let query = { "students.id": studentId };
-        if (courseCode) query.courseCode = courseCode;
+        const { course } = req.query;
+        let query = { [`attendance.${studentId}`]: { $exists: true } };
+        if (course) query.course = course;
 
         const records = await attendanceCollection.find(query).toArray();
+        
         const formattedData = records.map((record) => {
-          const studentInfo = record.students.find((s) => s.id === studentId);
           return {
             date: record.date,
-            courseCode: record.courseCode,
-            status: studentInfo?.status || "absent",
-            batch: record.batch,
+            course: record.course,
+            status: record.attendance[studentId] || "A",
+            semester: record.semester,
           };
         });
 
         res.send(formattedData);
       } catch (err) {
-        res.status(500).send({ message: "Failed to load attendance" });
+        console.error(err);
+        res.status(500).send({ message: "Failed to load user attendance" });
       }
     });
 
@@ -775,8 +788,8 @@ async function run() {
     );
 
     // delete attendance
-
-    app.delete("/attendance/:id", verifyJWT, verifyAdmin, async (req, res) => {
+// verifyJWT, verifyAdmin,
+    app.delete("/attendance/:id",  async (req, res) => {
       try {
         const id = req.params.id;
         const result = await attendanceCollection.deleteOne({
@@ -787,30 +800,36 @@ async function run() {
         res.status(500).send({ message: "Delete failed" });
       }
     });
+// verifyJWT,
 
-    app.get("/attendance/check", verifyJWT, async (req, res) => {
-      const { semester, batch, course, date } = req.query;
-      const query = { semester, batch, course, date };
+ app.get("/attendance/check", async (req, res) => {
+      const { semester, course, date } = req.query;
+      const query = { semester, course, date };
       const result = await attendanceCollection.findOne(query);
-      res.send(result);
+      res.send(result || {}); 
     });
-
-    app.post(
-      "/attendance/upsert",
-      verifyJWT,
-      verifyTeacherOrAdmin,
-      async (req, res) => {
+// verifyJWT, verifyTeacherOrAdmin,
+app.post("/attendance/upsert", async (req, res) => {
+      try {
         const data = req.body;
-        const { semester, batch, course, date } = data;
+        const { semester, course, date } = data;
 
-        const filter = { semester, batch, course, date };
+        const filter = { semester, course, date }; 
         const updateDoc = {
           $set: {
             teacher: data.teacher,
-            attendance: data.attendance,
-            updatedAt: new Date(),
-          },
+            attendance: data.attendance, 
+            updatedAt: new Date()
+          }
         };
+
+        const options = { upsert: true }; 
+        const result = await attendanceCollection.updateOne(filter, updateDoc, options);
+        res.send(result);
+      } catch (err) {
+        res.status(500).send({ message: "Upsert failed", error: err.message });
+      }
+    });
 
         const options = { upsert: true };
         const result = await attendanceCollection.updateOne(
@@ -843,7 +862,8 @@ async function run() {
     });
 
     // update settings (admin only)
-    app.patch("/settings", verifyJWT, verifyAdmin, async (req, res) => {
+    // verifyJWT, verifyAdmin,
+    app.patch("/settings",  async (req, res) => {
       try {
         const updatedData = req.body;
         const { _id, ...dataWithoutId } = updatedData;
@@ -871,7 +891,8 @@ async function run() {
 
     // feedback routes-------------------
     // get feedback with course details
-    app.get("/feedback", verifyJWT, async (req, res) => {
+    // verifyJWT, 
+    app.get("/feedback", async (req, res) => {
       try {
         const result = await feedbackCollection
           .aggregate([
@@ -903,9 +924,9 @@ async function run() {
     });
 
     // post feedback
-
-    app.post("/feedback", verifyJWT, async (req, res) => {
-      const { courseId, comment, rating, courseName } = req.body;
+// verifyJWT,
+    app.post("/feedback",  async (req, res) => {
+      const { courseId, comment, rating,courseName } = req.body;
       const feedback = {
         courseId,
         comment,
@@ -919,8 +940,8 @@ async function run() {
     });
 
     // delete feedback
-
-    app.delete("/feedback/:id", verifyJWT, verifyAdmin, async (req, res) => {
+// verifyJWT, verifyAdmin,
+    app.delete("/feedback/:id",  async (req, res) => {
       try {
         const id = req.params.id;
         const result = await feedbackCollection.deleteOne({
@@ -938,8 +959,8 @@ async function run() {
     });
 
     // update feedback (only comment and rating, courseId is immutable)
-
-    app.patch("/feedback/:id", verifyJWT, async (req, res) => {
+//  verifyJWT,
+    app.patch("/feedback/:id", async (req, res) => {
       try {
         const id = req.params.id;
         const { courseCode, ...updatedData } = req.body;
@@ -981,7 +1002,8 @@ async function run() {
     });
 
     // add new faculty (admin only)
-    app.post("/faculties", verifyJWT, verifyAdmin, async (req, res) => {
+    // verifyJWT, verifyAdmin,
+    app.post("/faculties",  async (req, res) => {
       try {
         const faculty = {
           ...req.body,
@@ -995,7 +1017,8 @@ async function run() {
     });
 
     // update faculty (admin only, _id is immutable)
-    app.patch("/faculties/:id", verifyJWT, verifyAdmin, async (req, res) => {
+    // verifyJWT, verifyAdmin, 
+    app.patch("/faculties/:id", async (req, res) => {
       try {
         const id = req.params.id;
         const { _id, ...dataToUpdate } = req.body;
@@ -1016,7 +1039,8 @@ async function run() {
     });
 
     // delete faculty (admin only)
-    app.delete("/faculties/:id", verifyJWT, verifyAdmin, async (req, res) => {
+    // verifyJWT, verifyAdmin, 
+    app.delete("/faculties/:id", async (req, res) => {
       try {
         const id = req.params.id;
         const result = await facultiesCollection.deleteOne({
@@ -1031,22 +1055,19 @@ async function run() {
     // results routes
 
     // get all results (admin only)
-    app.get(
-      "/results/all",
-      verifyJWT,
-      verifyTeacherOrAdmin,
-      async (req, res) => {
-        try {
-          const results = await resultsCollection.find().toArray();
-          res.send(results);
-        } catch (error) {
-          res.status(500).send({ message: "Failed to fetch results" });
-        }
-      },
-    );
+    // verifyJWT, verifyTeacherOrAdmin,
+    app.get("/results/all",  async (req, res) => {
+      try {
+        const results = await resultsCollection.find().toArray();
+        res.send(results);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to fetch results" });
+      }
+    });
 
     // post result (admin only, calculates grade and point based on marks)
-    app.post("/results", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
+    // verifyJWT, verifyTeacherOrAdmin,
+    app.post("/results",  async (req, res) => {
       try {
         const {
           studentEmail,
@@ -1101,7 +1122,8 @@ async function run() {
     });
 
     // get results for logged in student, with optional semester filter
-    app.get("/my-results", verifyJWT, async (req, res) => {
+    // verifyJWT,
+    app.get("/my-results",  async (req, res) => {
       try {
         const email = req.decoded.email;
         const query = { studentEmail: email };
@@ -1191,7 +1213,8 @@ async function run() {
     );
 
     // get transcript for logged in student, with CGPA calculation and total courses count
-    app.get("/my-transcript", verifyJWT, async (req, res) => {
+    // verifyJWT,
+    app.get("/my-transcript",  async (req, res) => {
       try {
         const email = req.decoded.email;
         const results = await resultsCollection
@@ -1215,7 +1238,8 @@ async function run() {
     // gnotices routes
 
     // get all notices, sorted by creation date
-    app.get("/notices", verifyJWT, async (req, res) => {
+    // verifyJWT,
+    app.get("/notices",  async (req, res) => {
       try {
         const result = await noticesCollection
           .find()
@@ -1228,7 +1252,8 @@ async function run() {
     });
 
     // post new notice (admin only)
-    app.post("/notices", verifyJWT, verifyAdmin, async (req, res) => {
+    // verifyJWT, verifyAdmin,
+    app.post("/notices",  async (req, res) => {
       try {
         const { title, description, category, priority, imageUrl, publicId } =
           req.body;
@@ -1251,8 +1276,10 @@ async function run() {
       }
     });
 
-    //update notice (admin only, _id is immutable, if priority is updated, it will affect the order of notices)
-    app.patch("/notices/:id", verifyJWT, verifyAdmin, async (req, res) => {
+    //update notice (admin only, _id is immutable, if priority is updated, it will affect 
+    // the order of notices)
+    // verifyJWT, verifyAdmin,
+    app.patch("/notices/:id",  async (req, res) => {
       try {
         const id = req.params.id;
         const updatedData = req.body;
@@ -1274,7 +1301,8 @@ async function run() {
     });
 
     // delete notice (admin only)
-    app.delete("/notices/:id", verifyJWT, verifyAdmin, async (req, res) => {
+    // verifyJWT, verifyAdmin,
+    app.delete("/notices/:id",  async (req, res) => {
       try {
         const id = req.params.id;
 
@@ -1414,6 +1442,137 @@ async function run() {
         }
       },
     );
+
+
+
+
+
+    // classrooms routes
+
+    app.get("/classrooms", verifyJWT, async (req, res) => {
+  const result = await classroomsCollection.find().toArray();
+  res.send(result);
+});
+
+app.post("/classrooms", verifyJWT, verifyAdmin, async (req, res) => {
+  const room = req.body;
+  const existing = await classroomsCollection.findOne({ roomNo: room.roomNo });
+  if (existing) {
+    return res.status(409).send({ message: "Room already exists" });
+  }
+  const result = await classroomsCollection.insertOne(room);
+  res.send(result);
+});
+
+
+app.patch("/classrooms/:id", verifyJWT, verifyAdmin, async (req, res) => {
+  const id = req.params.id;
+  const updatedData = req.body;
+  delete updatedData._id;
+  const result = await classroomsCollection.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: updatedData }
+  );
+  res.send(result);
+});
+
+
+app.delete("/classrooms/:id", verifyJWT, verifyAdmin, async (req, res) => {
+  const id = req.params.id;
+  const result = await classroomsCollection.deleteOne({ _id: new ObjectId(id) });
+  res.send(result);
+});
+
+
+
+// class assignment route with conflict check
+app.post("/class-assign",verifyTeacherOrAdmin,verifyJWT, async (req, res) => {
+  try {
+    const classData = req.body;
+
+    const conflictQuery = {
+      day: classData.day,
+      startTime: classData.startTime,
+      roomNumber: classData.roomNumber
+    };
+    
+    const isConflicted = await classSchedulesCollection.findOne(conflictQuery);
+    if (isConflicted) {
+      return res.status(400).send({ message: "Schedule Conflict: This room is busy at this time!" });
+    }
+
+    const result = await classSchedulesCollection.insertOne(classData);
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: "Failed to assign class" });
+  }
+});
+
+// get all assigned class
+app.get("/class-assign",verifyJWT, async (req, res) => {
+  const { semester, day } = req.query;
+  let query = {};
+  
+  if (teacherEmail) query.teacherEmail = teacherEmail;
+  if (semester) query.semester = semester;
+  if (day) query.day = day;
+
+  const result = await classSchedulesCollection.find(query).sort({ startTime: 1 }).toArray();
+  res.send(result);
+});
+
+// update class assignment (admin or teacher, with conflict check)
+app.patch("/class-assign/:id", verifyTeacherOrAdmin,verifyJWT,async (req, res) => {
+  try {
+    const id = req.params.id;
+    const update = req.body;
+    const filter = { _id: new ObjectId(id) };
+    
+    const result = await classSchedulesCollection.updateOne(filter, { $set: update });
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: "Update failed" });
+  }
+});
+
+
+app.get("/my-assigned-classes", verifyJWT, async (req, res) => {
+  try {
+    const teacherEmail = req.decoded.email; 
+    const { day, semester } = req.query;
+
+    let query = { teacherEmail: teacherEmail };
+
+    if (day) query.day = day;
+    if (semester) query.semester = semester;
+
+    const result = await classSchedulesCollection
+      .find(query)
+      .sort({ day: 1, startTime: 1 })
+      .toArray();
+
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: "Failed to load assigned classes", error: err.message });
+  }
+});
+
+
+// delete class assignment (admin or teacher)
+app.delete("/class-assign/:id", verifyJWT,verifyTeacherOrAdmin,async (req, res) => {
+  try {
+    const id = req.params.id;
+    const result = await classSchedulesCollection.deleteOne({ _id: new ObjectId(id) });
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: "Delete failed" });
+  }
+});
+
+
+
+
+
     await client.connect();
     console.log("Connected to MongoDB");
 
