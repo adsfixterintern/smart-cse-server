@@ -329,7 +329,7 @@ async function run() {
     });
     // get all users (admin only)
     // verifyJWT, verifyTeacherOrAdmin,
-    app.get("/users",  async (req, res) => {
+    app.get("/users", async (req, res) => {
       const users = await usersCollection.find().toArray();
       res.send(users);
     });
@@ -378,7 +378,7 @@ async function run() {
 
     // delete user (admin only)
     // verifyJWT, verifyAdmin,
-    app.delete("/users/:id",  async (req, res) => {
+    app.delete("/users/:id", async (req, res) => {
       const id = req.params.id;
       const result = await usersCollection.deleteOne({ _id: new ObjectId(id) });
       res.send(result);
@@ -477,7 +477,7 @@ async function run() {
 
     // student dashboard stats route
     // verifyJWT,
-   app.get("/student/dashboard-overview",  async (req, res) => {
+    app.get("/student/dashboard-overview", async (req, res) => {
       try {
         const email = req.decoded.email;
         const user = await usersCollection.findOne({ email });
@@ -575,7 +575,7 @@ async function run() {
 
     // get courses by semester (admin and teachers only)
     // verifyJWT,
-    app.get("/courses/:semester",  async (req, res) => {
+    app.get("/courses/:semester", async (req, res) => {
       try {
         const sem = req.params.semester;
         console.log(sem);
@@ -589,8 +589,8 @@ async function run() {
         res.status(500).send([]);
       }
     });
-// verifyJWT,
-    app.get("/courses",  async (req, res) => {
+    // verifyJWT,
+    app.get("/courses", async (req, res) => {
       const courseCode = req.query.code;
 
       let query = {};
@@ -600,7 +600,7 @@ async function run() {
       const courses = await coursesCollection.find(query).toArray();
       res.send(courses);
     });
-//  verifyJWT, verifyTeacherOrAdmin,
+    //  verifyJWT, verifyTeacherOrAdmin,
     app.post("/courses", async (req, res) => {
       const course = req.body;
       const existingCourse = await coursesCollection.findOne({
@@ -643,8 +643,8 @@ async function run() {
         res.send(result);
       },
     );
-// verifyJWT,
-    app.get("/courses/:code",  async (req, res) => {
+    // verifyJWT,
+    app.get("/courses/:code", async (req, res) => {
       const code = Number(req.params.code);
 
       const course = await coursesCollection.findOne({ code });
@@ -671,7 +671,7 @@ async function run() {
 
     // get students by semester (admin and teachers only)
     // verifyJWT,
-    app.get("/students/:semester",  async (req, res) => {
+    app.get("/students/:semester", async (req, res) => {
       try {
         const semester = req.params.semester;
         const query = {
@@ -696,7 +696,7 @@ async function run() {
 
     // get routines with optional semester filter
     // verifyJWT,
-    app.get("/routines",  async (req, res) => {
+    app.get("/routines", async (req, res) => {
       const semester = req.query.semester;
       const query = semester ? { semester } : {};
       const result = await routinesCollection.find(query).toArray();
@@ -732,7 +732,7 @@ app.post("/routines", async (req, res) => {
 
     // delete routine (admin only)
     // verifyJWT, verifyTeacherOrAdmin,
-    app.delete("/routines/:id",  async (req, res) => {
+    app.delete("/routines/:id", async (req, res) => {
       const id = req.params.id;
       const result = await routinesCollection.deleteOne({
         _id: new ObjectId(id),
@@ -774,7 +774,7 @@ app.post("/routines", async (req, res) => {
 
     // get attendance with optional batch and date filters
     // verifyJWT,
-    app.get("/attendance",  async (req, res) => {
+    app.get("/attendance", async (req, res) => {
       const { semester, batch, date } = req.query;
 
       let query = {};
@@ -788,27 +788,29 @@ app.post("/routines", async (req, res) => {
 
     // Get monthly attendance
     // verifyJWT,
- app.get("/attendance/monthly", async (req, res) => {
+    app.get("/attendance/monthly", async (req, res) => {
       try {
         const { semester, month, course } = req.query;
         const year = new Date().getFullYear();
-        
+
         const formattedMonth = month.padStart(2, "0");
         const datePattern = new RegExp(`^${year}-${formattedMonth}-`);
-        
+
         const query = {
           semester,
           course,
-          date: { $regex: datePattern }
+          date: { $regex: datePattern },
         };
 
-        const result = await attendanceCollection.find(query).sort({ date: 1 }).toArray();
+        const result = await attendanceCollection
+          .find(query)
+          .sort({ date: 1 })
+          .toArray();
         res.send(result);
       } catch (err) {
         res.status(500).send({ message: "Failed to load monthly data" });
       }
     });
-
 
     // post attendance (teacher or admin)
     app.post(
@@ -837,7 +839,7 @@ app.post("/routines", async (req, res) => {
         if (course) query.course = course;
 
         const records = await attendanceCollection.find(query).toArray();
-        
+
         const formattedData = records.map((record) => {
           return {
             date: record.date,
@@ -881,8 +883,8 @@ app.post("/routines", async (req, res) => {
     );
 
     // delete attendance
-// verifyJWT, verifyAdmin,
-    app.delete("/attendance/:id",  async (req, res) => {
+    // verifyJWT, verifyAdmin,
+    app.delete("/attendance/:id", async (req, res) => {
       try {
         const id = req.params.id;
         const result = await attendanceCollection.deleteOne({
@@ -893,13 +895,13 @@ app.post("/routines", async (req, res) => {
         res.status(500).send({ message: "Delete failed" });
       }
     });
-// verifyJWT,
+    // verifyJWT,
 
- app.get("/attendance/check", async (req, res) => {
+    app.get("/attendance/check", async (req, res) => {
       const { semester, course, date } = req.query;
       const query = { semester, course, date };
       const result = await attendanceCollection.findOne(query);
-      res.send(result || {}); 
+      res.send(result || {});
     });
 // verifyJWT, verifyTeacherOrAdmin,
 app.post("/attendance/upsert", async (req, res) => {
@@ -1371,7 +1373,7 @@ app.post("/attendance/upsert", async (req, res) => {
       }
     });
 
-    //update notice (admin only, _id is immutable, if priority is updated, it will affect 
+    //update notice (admin only, _id is immutable, if priority is updated, it will affect
     // the order of notices)
     // verifyJWT, verifyAdmin,
     app.patch("/notices/:id", verifyJWT,verifyAdmin, async (req, res) => {
@@ -1538,174 +1540,224 @@ app.post("/attendance/upsert", async (req, res) => {
       },
     );
 
-
-
-
-
     // classrooms routes
-
     app.get("/classrooms", verifyJWT, async (req, res) => {
-  const result = await classroomsCollection.find().toArray();
-  res.send(result);
-});
-
-app.post("/classrooms", verifyJWT, verifyAdmin, async (req, res) => {
-  const room = req.body;
-  const existing = await classroomsCollection.findOne({ roomNo: room.roomNo });
-  if (existing) {
-    return res.status(409).send({ message: "Room already exists" });
-  }
-  const result = await classroomsCollection.insertOne(room);
-  res.send(result);
-});
-
-
-app.patch("/classrooms/:id", verifyJWT, verifyAdmin, async (req, res) => {
-  const id = req.params.id;
-  const updatedData = req.body;
-  delete updatedData._id;
-  const result = await classroomsCollection.updateOne(
-    { _id: new ObjectId(id) },
-    { $set: updatedData }
-  );
-  res.send(result);
-});
-
-
-app.delete("/classrooms/:id", verifyJWT, verifyAdmin, async (req, res) => {
-  const id = req.params.id;
-  const result = await classroomsCollection.deleteOne({ _id: new ObjectId(id) });
-  res.send(result);
-});
-
-
-
-// class assignment route with conflict check
-app.post("/class-assign",verifyJWT,verifyTeacherOrAdmin, async (req, res) => {
-  try {
-    const classData = req.body;
-
-    const conflictQuery = {
-      day: classData.day,
-      startTime: classData.startTime,
-      roomNumber: classData.roomNumber
-    };
-    
-    const isConflicted = await classSchedulesCollection.findOne(conflictQuery);
-    if (isConflicted) {
-      return res.status(400).send({ message: "Schedule Conflict: This room is busy at this time!" });
-    }
-
-    const result = await classSchedulesCollection.insertOne(classData);
-    res.send(result);
-  } catch (err) {
-    res.status(500).send({ message: "Failed to assign class" });
-  }
-});
-
-// get all assigned class
-// get all assigned class
-app.get("/class-assign", verifyJWT, async (req, res) => {
-  try {
-    const { teacherEmail, semester, day } = req.query;
-    let query = {};
-
-    if (teacherEmail) query.teacherEmail = teacherEmail;
-    if (semester) query.semester = semester;
-    if (day) query.day = day;
-
-    const result = await classSchedulesCollection
-      .find(query)
-      .sort({ startTime: 1 })
-      .toArray();
-      
-    res.send(result);
-  } catch (err) {
-    res.status(500).send({ message: "Error fetching class assignments" });
-  }
-});
-
-// Get Today's Classes by Teacher Email (Server-side date detection)
-app.get("/teacher-today-classes", verifyJWT, verifyTeacherOrAdmin, async (req, res) => {
-  try {
-    const { teacherId } = req.query; 
-
-    if (!teacherId) {
-      return res.status(400).send({ message: "Teacher ID is required" });
-    }
-
- 
-    const todayDate = new Date().toISOString().split('T')[0];
-
-    const query = { 
-      teacherId: teacherId, 
-      day: todayDate       
-    }
-    const result = await classSchedulesCollection
-      .find(query)
-      .sort({ startTime: 1 })
-      .toArray();
-
-    res.send({
-      date: todayDate,
-      classes: result
+      const result = await classroomsCollection.find().toArray();
+      res.send(result);
     });
-  } catch (err) {
-    res.status(500).send({ message: "Internal server error", error: err.message });
-  }
-});
 
-// update class assignment (admin or teacher, with conflict check)
-app.patch("/class-assign/:id", verifyJWT,verifyTeacherOrAdmin,async (req, res) => {
-  try {
-    const id = req.params.id;
-    const update = req.body;
-    const filter = { _id: new ObjectId(id) };
-    
-    const result = await classSchedulesCollection.updateOne(filter, { $set: update });
-    res.send(result);
-  } catch (err) {
-    res.status(500).send({ message: "Update failed" });
-  }
-});
+    app.post("/classrooms", verifyJWT, verifyAdmin, async (req, res) => {
+      const room = req.body;
+      const existing = await classroomsCollection.findOne({
+        roomNo: room.roomNo,
+      });
+      if (existing) {
+        return res.status(409).send({ message: "Room already exists" });
+      }
+      const result = await classroomsCollection.insertOne(room);
+      res.send(result);
+    });
 
+    app.patch("/classrooms/:id", verifyJWT, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const updatedData = req.body;
+      delete updatedData._id;
+      const result = await classroomsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: updatedData },
+      );
+      res.send(result);
+    });
 
-app.get("/my-assigned-classes", verifyJWT,verifyTeacherOrAdmin, async (req, res) => {
-  try {
-    const teacherEmail = req.decoded.email; 
-    const { day, semester } = req.query;
+    app.delete("/classrooms/:id", verifyJWT, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const result = await classroomsCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+      res.send(result);
+    });
 
-    let query = { teacherEmail: teacherEmail };
+    // class assignment route with conflict check
+    app.post("/class-assign", verifyJWT, async (req, res) => {
+      const newClass = req.body;
 
-    if (day) query.day = day;
-    if (semester) query.semester = semester;
+      // new class er time calcualte kora hocche
+      const newStart = new Date(`${newClass.day}T${newClass.startTime}`);
+      const newEnd = new Date(
+        newStart.getTime() + parseFloat(newClass.duration) * 60 * 60 * 1000,
+      );
 
-    const result = await classSchedulesCollection
-      .find(query)
-      .sort({ day: 1, startTime: 1 })
-      .toArray();
+      // ২. same date a ki ki class ache seta check kora
+      const existingClasses = await classSchedulesCollection
+        .find({
+          roomNumber: newClass.roomNumber,
+          day: newClass.day,
+        })
+        .toArray();
 
-    res.send(result);
-  } catch (err) {
-    res.status(500).send({ message: "Failed to load assigned classes", error: err.message });
-  }
-});
+      // ৩. ওভারল্যাপ চেক করা
+      const isOverlapping = existingClasses.some((cls) => {
+        const existingStart = new Date(`${cls.day}T${cls.startTime}`);
+        const existingEnd = new Date(
+          existingStart.getTime() + parseFloat(cls.duration) * 60 * 60 * 1000,
+        );
 
+        // ওভারল্যাপের গাণিতিক শর্ত: (NewStart < ExistingEnd) AND (NewEnd > ExistingStart)
+        return newStart < existingEnd && newEnd > existingStart;
+      });
 
-// delete class assignment (admin or teacher)
-app.delete("/class-assign/:id", verifyJWT,verifyTeacherOrAdmin,async (req, res) => {
-  try {
-    const id = req.params.id;
-    const result = await classSchedulesCollection.deleteOne({ _id: new ObjectId(id) });
-    res.send(result);
-  } catch (err) {
-    res.status(500).send({ message: "Delete failed" });
-  }
-});
+      if (isOverlapping) {
+        return res.status(400).send({
+          message:
+            "This room is already booked for another class during this time!",
+        });
+      }
 
+      // jodi room avl tahek tobe data add hobe
+      const result = await classSchedulesCollection.insertOne(newClass);
+      res.send(result);
+    });
 
+    app.get("/class-assign", verifyJWT, async (req, res) => {
+      try {
+        const email = req.decoded?.email;
 
+        const user = await usersCollection.findOne({ email: email });
 
+        if (!user) {
+          return res.status(404).send({ message: "User not found" });
+        }
+
+        let query = {};
+
+        if (user.role === "teacher") {
+          query.teacherId = user.teacherId;
+        }
+
+        const result = await classSchedulesCollection
+          .find(query)
+          .sort({ startTime: 1 })
+          .toArray();
+
+        res.send(result);
+      } catch (err) {
+        res.status(500).send({ message: "Internal Server Error" });
+      }
+    });
+
+   
+    // update class assignment (admin or teacher, with conflict check)
+    app.patch(
+      "/class-assign/:id",
+      verifyJWT,
+      verifyTeacherOrAdmin, // verifyJWT আগে থাকা ভালো সিকিউরিটির জন্য
+      async (req, res) => {
+        try {
+          const id = req.params.id;
+          const updateData = req.body;
+          const query = { _id: new ObjectId(id) };
+
+          // ১. বর্তমান ক্লাসের তথ্য এবং আপডেটেড তথ্যের সমন্বয় করা
+          const currentClass = await classSchedulesCollection.findOne(query);
+          if (!currentClass) {
+            return res.status(404).send({ message: "Class not found" });
+          }
+
+          // যদি ইউজারের পাঠানো ডাটাতে নির্দিষ্ট ফিল্ড না থাকে, তবে আগের ডাটা ব্যবহার করবে
+          const updatedDay = updateData.day || currentClass.day;
+          const updatedStartTime =
+            updateData.startTime || currentClass.startTime;
+          const updatedDuration = updateData.duration || currentClass.duration;
+          const updatedRoom = updateData.roomNumber || currentClass.roomNumber;
+
+          // ২. নতুন সময় ক্যালকুলেট করা
+          const newStart = new Date(`${updatedDay}T${updatedStartTime}`);
+          const newEnd = new Date(
+            newStart.getTime() + parseFloat(updatedDuration) * 60 * 60 * 1000,
+          );
+
+          // ৩. ওভারল্যাপ চেক করা (বর্তমান ক্লাসটি বাদ দিয়ে বাকিগুলোর সাথে)
+          const existingClasses = await classSchedulesCollection
+            .find({
+              _id: { $ne: new ObjectId(id) }, // এই লাইনটি সবচেয়ে গুরুত্বপূর্ণ: নিজের ID বাদ দেওয়া
+              roomNumber: updatedRoom,
+              day: updatedDay,
+            })
+            .toArray();
+
+          const isOverlapping = existingClasses.some((cls) => {
+            const existingStart = new Date(`${cls.day}T${cls.startTime}`);
+            const existingEnd = new Date(
+              existingStart.getTime() +
+                parseFloat(cls.duration) * 60 * 60 * 1000,
+            );
+
+            return newStart < existingEnd && newEnd > existingStart;
+          });
+
+          if (isOverlapping) {
+            return res.status(400).send({
+              message:
+                "Conflict detected! The room is already booked for another class at this updated time.",
+            });
+          }
+
+          // ৪. কোনো কনফ্লিক্ট না থাকলে ডাটা আপডেট করা
+          const result = await classSchedulesCollection.updateOne(query, {
+            $set: updateData,
+          });
+
+          res.send(result);
+        } catch (err) {
+          console.error(err);
+          res
+            .status(500)
+            .send({ message: "Internal server error during update" });
+        }
+      },
+    );
+
+    app.get("/my-assigned-classes", verifyJWT, async (req, res) => {
+      try {
+        const teacherEmail = req.decoded.email;
+        const { day, semester } = req.query;
+
+        let query = { teacherEmail: teacherEmail };
+
+        if (day) query.day = day;
+        if (semester) query.semester = semester;
+
+        const result = await classSchedulesCollection
+          .find(query)
+          .sort({ day: 1, startTime: 1 })
+          .toArray();
+
+        res.send(result);
+      } catch (err) {
+        res.status(500).send({
+          message: "Failed to load assigned classes",
+          error: err.message,
+        });
+      }
+    });
+
+    // delete class assignment (admin or teacher)
+    app.delete(
+      "/class-assign/:id",
+      verifyJWT,
+      verifyTeacherOrAdmin,
+      async (req, res) => {
+        try {
+          const id = req.params.id;
+          const result = await classSchedulesCollection.deleteOne({
+            _id: new ObjectId(id),
+          });
+          res.send(result);
+        } catch (err) {
+          res.status(500).send({ message: "Delete failed" });
+        }
+      },
+    );
 
     await client.connect();
     console.log("Connected to MongoDB");
