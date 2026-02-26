@@ -477,7 +477,7 @@ async function run() {
 
     // student dashboard stats route
     // verifyJWT,
-    app.get("/student/dashboard-overview", async (req, res) => {
+    app.get("/student/dashboard-overview",verifyJWT, async (req, res) => {
       try {
         const email = req.decoded.email;
         const user = await usersCollection.findOne({ email });
