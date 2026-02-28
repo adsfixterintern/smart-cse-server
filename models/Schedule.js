@@ -21,7 +21,7 @@ const scheduleSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    date: {
+    day: {
       type: String, // "2026-02-28"
       required: true,
     },
@@ -48,8 +48,8 @@ const scheduleSchema = new mongoose.Schema(
 );
 
 // একই রুমে একই দিনে একই সময়ে ডুপ্লিকেট শিডিউল ঠেকানোর জন্য ইনডেক্স
-scheduleSchema.index({ date: 1, startTime: 1, roomNumber: 1 }, { unique: true });
+scheduleSchema.index({ day: 1, startTime: 1, roomNumber: 1 }, { unique: true });
 
-const Schedule = mongoose.models.Schedule || mongoose.model("Schedule", scheduleSchema);
+const Schedule = mongoose.models.Schedule || mongoose.model("Schedule", scheduleSchema, "classSchedules");
 
 module.exports = Schedule;
