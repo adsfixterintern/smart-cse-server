@@ -34,6 +34,6 @@ const attendanceSchema = new mongoose.Schema(
 // একই কোর্সের একই সেমিস্টারে একই দিনে যেন ডুপ্লিকেট এটেনডেন্স শিট না হয়
 attendanceSchema.index({ course: 1, date: 1, semester: 1 }, { unique: true });
 
-const Attendance = mongoose.models.Attendance || mongoose.model("Attendance", attendanceSchema);
+const Attendance = mongoose.models.Attendance || mongoose.model("Attendance", attendanceSchema,"attendance");
 
 module.exports = Attendance;

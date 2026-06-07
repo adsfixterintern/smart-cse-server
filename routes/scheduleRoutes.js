@@ -10,7 +10,9 @@ router.get("/my-classes", verifyJWT, verifyTeacherOrAdmin, scheduleController.ge
 
 // অ্যাডমিন বা টিচারদের জন্য ম্যানেজমেন্ট রাউট
 router.post("/assign", verifyJWT, verifyTeacherOrAdmin, scheduleController.assignClass);
-router.patch("/update/:id", verifyJWT, verifyTeacherOrAdmin, scheduleController.updateAssignment);
-router.delete("/delete/:id", verifyJWT, verifyTeacherOrAdmin, scheduleController.deleteAssignment);
+router.patch("/:id", verifyJWT, verifyTeacherOrAdmin, scheduleController.updateAssignment);
+router.delete("/:id", verifyJWT, verifyTeacherOrAdmin, scheduleController.deleteAssignment);
+
+router.get('/',scheduleController.getSchedule)
 
 module.exports = router;

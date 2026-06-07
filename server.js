@@ -15,6 +15,7 @@ const resultRoutes = require("./routes/resultRoutes");
 const noticeRoutes = require("./routes/noticeRoutes");
 const classroomRoutes = require("./routes/classroomRoutes");
 const scheduleRoutes = require("./routes/scheduleRoutes");
+const uploadRoutes = require("./routes/imageRoutes");
 
 const app = express();
 const port = process.env.PORT || 5001;
@@ -55,6 +56,7 @@ app.use("/api/results", resultRoutes);
 app.use("/api/notices", noticeRoutes);
 app.use("/api/classrooms", classroomRoutes);
 app.use("/api/schedules", scheduleRoutes);
+app.use("/api/images", uploadRoutes);
 
 // ৪. বেস রাউট
 app.get("/", (req, res) => {

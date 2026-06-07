@@ -30,6 +30,7 @@ exports.assignClass = async (req, res) => {
 exports.getAllAssignments = async (req, res) => {
   try {
     const { teacherEmail, semester, date } = req.query;
+    console.log(teacherEmail,semester,date)
     let query = {};
 
     if (teacherEmail) query.teacherEmail = teacherEmail;
@@ -77,6 +78,16 @@ exports.getMyAssignedClasses = async (req, res) => {
     res.send(result);
   } catch (err) {
     res.status(500).send({ message: "Failed to load assigned classes" });
+  }
+};
+
+exports.getSchedule= async (req, res) => {
+  try {
+
+    const result = await Schedule.find({})
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: "Failed to load schedule for the date" });
   }
 };
 
