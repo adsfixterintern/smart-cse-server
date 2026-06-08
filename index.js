@@ -786,27 +786,42 @@ app.post("/routines", async (req, res) => {
       res.send(result);
     });
 
-    // Get monthly attendance
-    // verifyJWT,
- app.get("/attendance/monthly", async (req, res) => {
-      try {
-        const { semester, month, course } = req.query;
-        const year = new Date().getFullYear();
-        
-        const formattedMonth = month.padStart(2, "0");
-        const datePattern = new RegExp(`^${year}-${formattedMonth}-`);
-        
-        const query = {
-          semester,
-          course,
-          date: { $regex: datePattern }
-        };
+        // Get monthly attendance
+    app.get("/attendance/monthly", verifyJWT, async (req, res) => {
+      const { semester, batch, month } = req.query;
 
-        const result = await attendanceCollection.find(query).sort({ date: 1 }).toArray();
+      const year = new Date().getFullYear();
+      const startDate = `${year}-${month.padStart(2, "0")}-01`;
+      const endDate = `${year}-${month.padStart(2, "0")}-31`;
+
+      const result = await attendanceCollection
+        .find({
+          semester,
+          batch,
+          date: { $gte: startDate, $lte: endDate },
+        })
+        .toArray();
+
+      res.send(result);
+    });
+
+    // post attendance (admin only)
+    app.post(
+      "/attendance",
+      verifyJWT,
+      verifyTeacherOrAdmin,
+      async (req, res) => {
+        const data = req.body;
+        const result = await attendanceCollection.insertOne(data);
         res.send(result);
-      } catch (err) {
-        res.status(500).send({ message: "Failed to load monthly data" });
-      }
+      },
+    );
+
+    // post attendance (admin only)
+    app.post("/attendance", verifyJWT, verifyAdmin, async (req, res) => {
+      const data = req.body;
+      const result = await attendanceCollection.insertMany(data);
+      res.send(result);
     });
 
 
